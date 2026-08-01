@@ -14,7 +14,7 @@
 
 본 논문은 이러한 문제를 해결하기 위해 모듈형 4단계 유닛 아키텍처(유닛 A~D)와 요구사항 명세서(SRS) 기반의 자동 자가 치유(Self-Healing) 폐쇄 루프 메커니즘을 제안한다. 제안하는 메커니즘은 적대적 스트레스 테스트 데이터셋을 활용해 시스템의 우회 가능성을 정량적 지표인 '액션 매트릭스(Action Matrix)'로 산출하고, 평가 결과에 따라 명세서의 절대 보안 원칙(Meta-Rules)을 자동으로 보강한다. 나아가 고정된 공격셋에 대한 과적합을 방지하기 위해 별도의 헬드아웃(Held-out) 검증셋과 적응형 재공격(Adaptive Re-Attack) 실험을 통해 방어 메커니즘의 일반화 성능과 견고성을 검증한다.
 
-또한, 평가 과정에서 발생할 수 있는 평가 모델(LLM-as-a-Judge)의 컨텍스트 오염 및 확증 편향을 원천 차단하기 위해 무상태(Stateless) API 기반의 독립 평가 환경을 구축하였으며, 사람 평가자와의 채점 일치도(Cohen's Kappa)를 측정하여 평가 신뢰성을 검증하였다. 가전 유통 기업 사례(A사)를 적용한 실증 실험 결과, [TODO: 실제 실험 후 결과 요약 문장으로 교체], 모델 재학습 없이 텍스트 명세 최적화만으로 대화형 AI의 신뢰성을 확보할 수 있음을 입증하였다.
+또한, 평가 과정에서 발생할 수 있는 평가 모델(LLM-as-a-Judge)의 컨텍스트 오염 및 확증 편향을 원천 차단하기 위해 무상태(Stateless) API 기반의 독립 평가 환경을 구축하였으며, 표본 검토를 통해 평가 결과의 정성적 신뢰성을 점검하였다. 가전 유통 기업 사례(A사)를 적용한 실증 실험 결과, [TODO: 실제 실험 후 결과 요약 문장으로 교체], 모델 재학습 없이 텍스트 명세 최적화만으로 대화형 AI의 신뢰성을 확보할 수 있음을 입증하였다.
 
 ### 영문 초록 (Abstract)
 
@@ -22,7 +22,7 @@ When deploying Generative Large Language Models (LLMs) in enterprise environment
 
 This paper proposes a novel AI chatbot development framework featuring a modular 4-unit system architecture (Units A–D) and an automated Requirements Specification (SRS)-based Self-Healing closed-loop mechanism. The proposed framework generates adversarial stress scenarios, evaluates unit-level compliance via a quantitative 'Action Matrix', and automatically hardens the SRS meta-rules based on feedback logs. To prevent overfitting to a fixed attack set, generalization and robustness are further validated through a held-out test set and adaptive re-attack experiments.
 
-To eliminate context bleeding and confirmation bias during evaluation, a stateless API-driven LLM-as-a-Judge environment was implemented, and judge reliability was validated against human annotators (Cohen's Kappa). Empirical validation using a consumer electronics retail domain (Company A) [TODO: replace with actual result summary after experiments], demonstrating that enterprise-grade reliability can be achieved purely via lightweight SRS optimization without costly model retraining.
+To eliminate context bleeding and confirmation bias during evaluation, a stateless API-driven LLM-as-a-Judge environment was implemented, and evaluation reliability was qualitatively spot-checked against a sample of judge outputs. Empirical validation using a consumer electronics retail domain (Company A) [TODO: replace with actual result summary after experiments], demonstrating that enterprise-grade reliability can be achieved purely via lightweight SRS optimization without costly model retraining.
 
 ---
 
@@ -151,12 +151,16 @@ sequenceDiagram
 
 본 연구의 모든 정량 결과는 결국 심판관 LLM의 채점에 전적으로 의존한다. 심판관이 체계적으로 관대하거나(false PASS) 체계적으로 엄격하면(false FAIL), 방어 성공률 자체가 무의미해진다. 따라서 심판관의 채점이 사람의 판단과 얼마나 일치하는지 별도로 검증한다.
 
-#### 3.6.2 검증 절차
+#### 3.6.2 검증 절차 (경량 표본 검토, Lightweight Spot-Check)
 
-1. **표본 추출**: 치유용 50개 + 헬드아웃 50개 + 적응형 재공격 30개, 총 130개 결과 중 30개(약 23%)를 층화 무작위 추출한다 (PASS/WARNING/FAIL 등급이 골고루 섞이도록).
-2. **독립 평가자 2인**이 심판관과 동일한 rubric으로, 서로의 채점과 심판관의 채점을 보지 않은 채 블라인드로 채점한다.
-3. **일치도 산출**: 사람 간 일치도(Cohen's Kappa), 사람-모델 일치도(Percent Agreement + Cohen's Kappa)를 각각 산출한다.
-4. **판정 기준**: Kappa ≥ 0.6(Substantial agreement, Landis & Koch, 1977)이면 심판관 채점을 신뢰할 수 있는 것으로 간주한다. [TODO: 실험 후 실제 Kappa 값 채움]
+정식 다중 평가자 신뢰도 분석(Cohen's Kappa 등)은 본 연구의 범위를 벗어나므로, 다음과 같은 경량 표본 검토로 대체한다.
+
+1. **표본 추출**: 치유용 + 헬드아웃 + 적응형 재공격 결과 중 15~20개를 무작위 추출한다 (PASS/WARNING/FAIL 등급이 골고루 섞이도록).
+2. **연구자 본인이 rubric(§4.1 Action Matrix 기준표)에 따라 직접 채점**하고, 심판관 LLM의 채점 결과와 대조한다.
+3. **보고 형식**: "표본 N건 중 심판관과 연구자 채점이 일치한 건수 M건(일치율 M/N)"을 정성적으로 보고하고, 불일치 사례가 있다면 그 원인(rubric 해석 차이, 경계 사례 등)을 간단히 논의한다.
+4. [TODO: 실험 후 실제 표본 검토 결과 채움]
+
+> 본 절차는 정식 inter-rater reliability 연구가 아니라, 심판관 채점의 명백한 오류(체계적 편향)가 없는지 확인하는 최소한의 정성적 안전장치임을 명시한다. 이 한계는 §6(논의 및 한계점)에 함께 기술한다.
 
 #### 3.6.3 부가 검증 — 심판관 자체의 피공격 가능성
 
@@ -280,8 +284,8 @@ def evaluate_response(srs_excerpt: str, attack_prompt: str, chatbot_response: st
 ## 제6장. 논의 및 한계점 (Discussion)
 
 1. **학술적/실무적 시사점**: 본 연구는 막대한 연산 비용이 드는 모델 파인튜닝(Fine-tuning)이나 복잡한 다중 에이전트(Multi-agent) 시스템 없이도, 소프트웨어공학의 요구사항 명세서(SRS) 텍스트 최적화와 모듈형 아키텍처 재구성만으로 LLM의 준수율을 끌어올릴 수 있음을 헬드아웃 검증과 적응형 재공격 실험을 통해 증명하였다. 이는 기업의 AI 도입 비용을 절감시킨다.
-2. **내적 타당성 위협 통제**: 'LLM이 LLM을 채점하는 방식'에서 제기되는 확증 편향 문제는 무상태(Stateless) API 파이프라인과 사람 평가자 대비 일치도 검증(§3.6)을 통해 구조적으로 통제하였다.
-3. **연구의 한계점 및 향후 과제**: 본 실험은 가전 유통 분야를 중심으로 진행되었으므로, 향후 의료, 금융, 공공기관 등 더욱 복잡한 법적 제약 조건이 존재하는 타 도메인(Heterogeneous Organizations)으로 적용 범위를 확장하여 일반화 가능성을 추가 검증할 예정이다. 또한 심판관 LLM에 대한 응답 내 인젝션 공격(§3.6.3)은 본 연구의 범위 밖으로 남겨두었다.
+2. **내적 타당성 위협 통제**: 'LLM이 LLM을 채점하는 방식'에서 제기되는 확증 편향 문제는 무상태(Stateless) API 파이프라인을 통해 구조적으로 통제하였다.
+3. **연구의 한계점 및 향후 과제**: 본 실험은 가전 유통 분야를 중심으로 진행되었으므로, 향후 의료, 금융, 공공기관 등 더욱 복잡한 법적 제약 조건이 존재하는 타 도메인(Heterogeneous Organizations)으로 적용 범위를 확장하여 일반화 가능성을 추가 검증할 예정이다. 또한 심판관 채점 신뢰성은 정식 다중 평가자 통계 검증이 아닌 경량 표본 검토(§3.6.2)에 그쳤으며, 심판관 LLM에 대한 응답 내 인젝션 공격(§3.6.3)은 본 연구의 범위 밖으로 남겨두었다. 이 두 가지는 후속 연구에서 정식 inter-rater reliability 분석으로 보강할 필요가 있다.
 
 ---
 
@@ -300,9 +304,8 @@ def evaluate_response(srs_excerpt: str, attack_prompt: str, chatbot_response: st
 3. Sivaroopan, N., et al. (2026). SHIELD: An Auto-Healing Agentic Defense Framework for LLM Resource Exhaustion Attacks. arXiv:2601.19174.
 4. OWASP Top 10 for Large Language Model Applications 2025 (v2.0). OWASP Foundation. (Published 2024-11-18)
 5. Greshake, K., Abdelnabi, S., Mishra, S., Endres, C., Holz, T., & Fritz, M. (2023). Not what you've signed up for: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection. *ACM Workshop on Artificial Intelligence and Security (AISec 2023)*. arXiv:2302.12173.
-6. Landis, J. R., & Koch, G. G. (1977). The measurement of observer agreement for categorical data. *Biometrics*, 33(1), 159-174. [Cohen's Kappa 판정 기준 인용]
 
-> ⚠️ 제출 전 지도교수/Google Scholar 재확인 권장. 6번(Landis & Koch)은 본 초안 작성 과정에서 신규 추가된 표준 통계 문헌 인용이므로 형식(APA/IEEE 등 학교 지정 스타일)에 맞춰 재포맷 필요.
+> ⚠️ 제출 전 지도교수/Google Scholar 재확인 권장.
 
 ---
 
@@ -312,5 +315,5 @@ def evaluate_response(srs_excerpt: str, attack_prompt: str, chatbot_response: st
 - 부록 B. SRS v1.0 ~ v_final 전문 (Meta-Rule diff 포함) [TODO]
 - 부록 C. Action Matrix 채점 프롬프트 템플릿 전문 [TODO]
 - 부록 D. 실험 재현 코드 저장소 링크 및 실행 방법 (`seonghoikim/hongik`) [TODO: 코드 구현 후 링크 채움]
-- 부록 E. 사람-LLM 심판관 채점 일치율 원자료 (§3.6) [TODO]
+- 부록 E. 심판관 채점 경량 표본 검토 원자료 (§3.6.2, 15~20건) [TODO]
 - 부록 F. 적응형 재공격 30개(블랙박스 15 + 화이트박스 15) 전문 및 결과 (§5.4) [TODO]
