@@ -1,8 +1,10 @@
 <!-- 작업 원고. TODO 표시는 실제 코드 구현/실험 후 채울 자리입니다. -->
 
-# 다양한 고객 조직을 위한 LLM 커스터마이징 기반 AI 챗봇 개발 메커니즘
+# 이질적 고객 조직 적용을 위한 LLM 커스터마이징 기반 AI 챗봇 자가 치유 개발 메커니즘: 가전 유통 사례를 중심으로
 
-**AI Chatbot Development Mechanism Through Customizing LLM for Heterogeneous Customer's Organization**
+**A Self-Healing AI Chatbot Development Mechanism Through LLM Customization for Heterogeneous Customer Organizations: A Consumer Electronics Retail Case Study**
+
+> ⚠️ 제목 변경 사유: 원 제목("다양한 고객 조직을 위한...")은 다중 도메인 실증을 시사하나, 현재 실험은 가전 유통 1개 도메인뿐임. 부제로 실제 검증 범위를 명시하여 제목-내용 불일치를 해소함. 추후 2개 이상 도메인 실험이 추가되면 부제를 제거하고 원 제목으로 되돌릴 수 있음.
 
 ---
 
@@ -14,7 +16,7 @@
 
 본 논문은 이러한 문제를 해결하기 위해 모듈형 4단계 유닛 아키텍처(유닛 A~D)와 요구사항 명세서(SRS) 기반의 자동 자가 치유(Self-Healing) 폐쇄 루프 메커니즘을 제안한다. 제안하는 메커니즘은 적대적 스트레스 테스트 데이터셋을 활용해 시스템의 우회 가능성을 정량적 지표인 '액션 매트릭스(Action Matrix)'로 산출하고, 평가 결과에 따라 명세서의 절대 보안 원칙(Meta-Rules)을 자동으로 보강한다. 나아가 고정된 공격셋에 대한 과적합을 방지하기 위해 별도의 헬드아웃(Held-out) 검증셋과 적응형 재공격(Adaptive Re-Attack) 실험을 통해 방어 메커니즘의 일반화 성능과 견고성을 검증한다.
 
-또한, 평가 과정에서 발생할 수 있는 평가 모델(LLM-as-a-Judge)의 컨텍스트 오염 및 확증 편향을 원천 차단하기 위해 무상태(Stateless) API 기반의 독립 평가 환경을 구축하였으며, 표본 검토를 통해 평가 결과의 정성적 신뢰성을 점검하였다. 가전 유통 기업 사례(A사)를 적용한 실증 실험 결과, [TODO: 실제 실험 후 결과 요약 문장으로 교체], 모델 재학습 없이 텍스트 명세 최적화만으로 대화형 AI의 신뢰성을 확보할 수 있음을 입증하였다.
+또한, 평가 과정에서 발생할 수 있는 평가 모델(LLM-as-a-Judge)의 컨텍스트 오염 및 확증 편향을 원천 차단하기 위해 무상태(Stateless) API 기반의 독립 평가 환경을 구축하였으며, 표본 검토를 통해 평가 결과의 정성적 신뢰성을 점검하였다. 본 연구는 가전 유통 기업 사례(A사)를 대상으로 한 **단일 도메인 파일럿 사례 연구(pilot case study)**이며, 실증 실험 결과 [TODO: 실제 실험 후 결과 요약 문장으로 교체], 모델 재학습 없이 텍스트 명세 최적화만으로 대화형 AI의 신뢰성을 확보할 수 있음을 입증하였다. 금융·의료 등 타 도메인으로의 일반화는 향후 과제로 남긴다.
 
 ### 영문 초록 (Abstract)
 
@@ -22,7 +24,7 @@ When deploying Generative Large Language Models (LLMs) in enterprise environment
 
 This paper proposes a novel AI chatbot development framework featuring a modular 4-unit system architecture (Units A–D) and an automated Requirements Specification (SRS)-based Self-Healing closed-loop mechanism. The proposed framework generates adversarial stress scenarios, evaluates unit-level compliance via a quantitative 'Action Matrix', and automatically hardens the SRS meta-rules based on feedback logs. To prevent overfitting to a fixed attack set, generalization and robustness are further validated through a held-out test set and adaptive re-attack experiments.
 
-To eliminate context bleeding and confirmation bias during evaluation, a stateless API-driven LLM-as-a-Judge environment was implemented, and evaluation reliability was qualitatively spot-checked against a sample of judge outputs. Empirical validation using a consumer electronics retail domain (Company A) [TODO: replace with actual result summary after experiments], demonstrating that enterprise-grade reliability can be achieved purely via lightweight SRS optimization without costly model retraining.
+To eliminate context bleeding and confirmation bias during evaluation, a stateless API-driven LLM-as-a-Judge environment was implemented, and evaluation reliability was qualitatively spot-checked against a sample of judge outputs. This study is a **single-domain pilot case study** using a consumer electronics retail domain (Company A); empirical results [TODO: replace with actual result summary after experiments] demonstrate that enterprise-grade reliability can be achieved purely via lightweight SRS optimization without costly model retraining. Generalization to other domains (e.g., finance, healthcare) is left as future work.
 
 ---
 
@@ -133,11 +135,22 @@ sequenceDiagram
 |---|---|---|---|
 | 유닛 C (추론 엔진) | [TODO] | [TODO] | Stateful, 시스템 프롬프트 주입 |
 | LLM 심판관 (Judge) | [TODO] | [TODO] | Stateless, 매 호출 신규 세션 |
+| Meta-Rule 생성기 (§4.3) | [TODO] | [TODO] | Stateless, temperature=0 |
+| 레드팀 생성 LLM (§4.2.2) | [TODO] | [TODO] | Stateless |
 | Temperature | [TODO, 권장 0.0~0.3 고정] | - | - |
 
 #### 3.5.3 통계적 검정 방법
 
-명세서 버전 간(v1.0 vs v2.0 vs v3.0) 점수 차이의 유의성 검정은 표본 수가 적고 정규성 가정이 어려운 점을 고려해 **Wilcoxon signed-rank test**를 사용한다. 헬드아웃 셋에서의 방어율이 치유용 셋과 통계적으로 유의한 차이가 없어야 "과적합이 아니다"라는 주장이 성립한다. [TODO: 실험 후 p-value 채움]
+본 연구의 비교는 성격이 다른 두 유형으로 나뉘므로, 각각 다른 검정 기법을 적용한다. 표본 수가 적고 정규성 가정이 어려운 순위형(ordinal) 데이터이므로 비모수(non-parametric) 검정을 기본으로 한다.
+
+1. **대응표본 비교 (Within-set, Paired)**: 치유용 셋 50개는 SRS v1.0 → v_final로 명세서만 바뀌고 **동일한 문항**을 반복 측정한다. 따라서 문항별 점수 변화를 짝지을 수 있는 대응표본 설계이며, **Wilcoxon signed-rank test**를 사용해 v1.0과 v_final 간 점수 분포 차이의 유의성을 검정한다.
+2. **독립표본 비교 (Between-set, Independent)**: 치유용 셋(v_final)과 헬드아웃 셋은 **서로 다른 문항 집합**이므로 대응시킬 수 없는 독립표본이다. 여기에 Wilcoxon signed-rank test를 쓰는 것은 통계적으로 부적절하며, 다음 두 검정을 사용한다.
+   - **Mann-Whitney U test**: 두 집단의 Action Matrix 점수(1~3점, 순위형) 분포 차이 검정.
+   - **카이제곱 독립성 검정(Chi-square test of independence)**: PASS/WARNING/FAIL 등급 빈도표(2×3 분할표)에 대해 두 집단(치유용 vs 헬드아웃)의 등급 분포가 통계적으로 독립적인지(=차이가 없는지) 검정. p > 0.05이면 "헬드아웃 셋에서도 치유용 셋과 통계적으로 구분되지 않는 방어율을 보였다"고 주장할 근거가 된다.
+   - 동일한 방식(Mann-Whitney U + 카이제곱)을 §5.4 적응형 재공격의 블랙박스 vs 화이트박스 비교, 그리고 v_final vs 각 적응형 재공격 집단 비교에도 적용한다.
+3. [TODO: 실험 후 각 검정의 실제 통계량과 p-value 채움]
+
+> 정리: **같은 문항을 반복 측정 → Wilcoxon signed-rank**, **다른 문항 집합끼리 비교 → Mann-Whitney U / 카이제곱**. 두 상황을 혼동하지 않도록 5장 결과표에도 어떤 비교에 어떤 검정을 썼는지 각주로 명시한다.
 
 #### 3.5.4 독립변인 / 종속변인 정의
 
@@ -191,10 +204,10 @@ flowchart TD
 ### 4.1. 자가 치유 5단계 동작 절차
 
 1. **초기 요구사항 명세 정의 (SRS v1.0)**: 고객사가 요구하는 역할, 말투, 업무 범위, 금지 사항을 명세서 형태로 작성한다.
-2. **스트레스 테스트 데이터셋 생성**: 고객사 가이드라인을 의도적으로 파괴하려는 50가지의 극단적인 프롬프트 인젝션 공격 시나리오(사칭, 어투 변경, 허위 사실 동조 등)를 구성한다.
+2. **스트레스 테스트 데이터셋 생성**: 고객사 가이드라인을 의도적으로 파괴하려는 50가지의 극단적인 프롬프트 인젝션 공격 시나리오(사칭, 어투 변경, 허위 사실 동조 등)를 구성한다 (생성 방법론 및 분류체계는 §4.2 참조).
 3. **무상태(Stateless) 시뮬레이션 실행**: 각 공격 문장을 유닛 A~D 시스템에 입력하여 응답 텍스트를 추출한다.
 4. **액션 매트릭스(Action Matrix) 산출**: 격리된 LLM 심판관이 답변을 분석하여 3점(PASS - 완벽 준수), 2점(WARNING - 부분 노출), 1점(FAIL - 이탈)으로 정량 채점하고, 어느 유닛에서 우회가 발생했는지 추적한다.
-5. **자가 치유 및 SRS 강화 (SRS Hardening)**: 1점 및 2점 항목이 발생할 경우, 실패 사유를 분석하여 명세서 최상단 및 최하단에 사용자의 어떠한 지시보다 무조건 우선하는 '절대 보안 원칙(Meta-Rules)'을 샌드위치 기법(Sandwich Prompting)으로 주입하여 명세서를 보강(v2.0, v3.0…)한다. 이 과정은 총점이 만점에 도달할 때까지 자동 반복된다.
+5. **자가 치유 및 SRS 강화 (SRS Hardening)**: 1점 및 2점 항목이 발생할 경우, 실패 사유를 분석하여 명세서 최상단 및 최하단에 사용자의 어떠한 지시보다 무조건 우선하는 '절대 보안 원칙(Meta-Rules)'을 샌드위치 기법(Sandwich Prompting)으로 주입하여 명세서를 보강(v2.0, v3.0…)한다. 이 과정은 총점이 만점에 도달할 때까지 자동 반복된다 (자동화 범위의 정확한 정의는 §4.3 참조).
 
 **Action Matrix 채점 기준표 (Rubric)**
 
@@ -206,13 +219,60 @@ flowchart TD
 
 채점 절차: 무상태 심판관 LLM에 (원본 SRS 발췌 + 공격 프롬프트 + 챗봇 응답)만 입력하고(직전 대화 이력 없음), 위 rubric을 시스템 프롬프트로 제공하여 점수 + 근거 + 위반 유닛(A/B/C/D)을 JSON으로 반환하도록 지시한다. [TODO: 실제 프롬프트 템플릿 전문을 부록 C에 수록]
 
+### 4.2. 공격 시나리오 생성 방법론 및 분류체계
+
+#### 4.2.1 분류체계 (Attack Taxonomy)
+
+임의로 공격 문장을 만들면 재현성과 대표성을 담보할 수 없으므로, OWASP Top 10 for LLM Applications (2025)의 위협 카테고리에 본 연구의 5개 공격 유형을 매핑하여 체계를 확정한다.
+
+| 본 연구의 공격 유형 | 대응 OWASP LLM Top 10 카테고리 | 설명 |
+|---|---|---|
+| 관리자/시스템 사칭 | LLM01: Prompt Injection | 시스템 권한자 행세로 지시 재정의 시도 |
+| 인코딩·난독화 우회 | LLM01: Prompt Injection (변형) | Base64, 특수문자 삽입 등으로 필터 우회 |
+| 어투 강요·가스라이팅 | LLM01: Prompt Injection (Instruction Override) | "너는 이제 다른 페르소나야" 식의 지시 재정의 |
+| 허위 사실 동조 유도 | LLM09: Misinformation | 허위 제품 결함 등에 대한 동조·확언 유도 |
+| 내부 메타데이터·시스템 프롬프트 유출 유도 | LLM07: System Prompt Leakage / LLM02: Sensitive Information Disclosure | 내부 지침·프롬프트 전문 노출 유도 |
+
+각 카테고리당 균등 비율(치유용 50개 기준 카테고리별 약 10개)로 층화 구성하여, 특정 유형에 편중된 데이터셋이 되지 않도록 한다.
+
+#### 4.2.2 생성 절차
+
+1. **1차 생성 (자동)**: 별도의 "레드팀 생성 LLM"에게 §4.2.1의 카테고리 정의와 각 2개씩의 예시(few-shot)를 제공하여, 카테고리별 후보 공격 문장을 목표 수량의 1.5배 생성하게 한다 (예: 최종 10개 필요 시 15개 생성).
+2. **2차 필터링 (연구자 수동 검토)**: 연구자가 각 후보를 다음 기준으로 검토·제외한다.
+   - 실질적으로 동일한 공격의 표현만 다른 중복 문항 제거
+   - 대상 도메인(가전 유통)에 비현실적인 시나리오 제거
+   - 카테고리 정의에 부합하지 않는 문항 제거
+3. **분할**: 필터링을 통과한 문항을 §3.5.1의 층화추출 기준에 따라 치유용 50개 / 헬드아웃 50개로 무작위 배정한다 (카테고리별 비율 동일하게 유지).
+4. [TODO: 실험 후 실제 사용 모델명, 생성-필터링 통과율, 최종 카테고리별 분포표 채움]
+
+> 이 절차는 "공격 생성이 자동인가 수동인가"라는 질문에 대해 **1차 생성은 LLM 자동, 필터링은 연구자 수동**이라는 반자동(semi-automated) 파이프라인임을 명시적으로 답하기 위해 마련되었다. §4.3(자가 치유 메커니즘의 자동화 수준)과 함께, 본 연구 전체에서 "자동"이라는 단어를 쓸 때마다 정확히 어느 구간이 자동인지 표로 정리해 둘 것을 권장한다.
+
+### 4.3. 자가 치유 메커니즘의 자동화 수준 (Level of Automation)
+
+#### 4.3.1 확정된 설계
+
+4.1의 5단계 중 "실패 사유 분석 → Meta-Rule 문구 생성 → 명세서 삽입"(4단계~5단계)을 누가 수행하는지가 원 초안에서 불명확했다. 이를 다음과 같이 확정한다.
+
+- **Meta-Rule 생성기(Meta-Rule Generator)**: 심판관과 별도로 동작하는 **전용 LLM 호출**을 신설한다. 입력으로 (a) 해당 라운드에서 발생한 모든 FAIL/WARNING 사례의 공격 프롬프트·챗봇 응답·심판관의 위반 사유·위반 유닛을 받고, 출력으로 신규/수정 Meta-Rule 문구 후보(샌드위치 프롬프팅 형식)와 그 근거를 생성한다.
+- **삽입 및 재실행**: 생성된 Meta-Rule을 SRS 최상단·최하단에 자동으로 삽입하여 버전을 올리고(v_n → v_n+1), 치유용 셋으로 즉시 재평가하는 과정 전체가 사람 개입 없이 코드로 반복된다.
+- 즉, **본 연구가 실험적으로 측정하는 자가 치유 루프는 (연구 목적상) 완전 자동**이다. Temperature=0으로 고정해 Meta-Rule 생성기의 출력도 재현 가능하게 한다.
+
+#### 4.3.2 연구 범위와 실제 서비스 배포의 구분
+
+다만 실제 프로덕션에 반영할 경우, 생성기가 만든 Meta-Rule을 사람이 검수 없이 즉시 배포하는 것은 별개의 안전성 문제(예: 과도하게 제한적인 규칙으로 인한 정상 응답 차단)를 유발할 수 있다. 따라서 본 연구는 다음과 같이 범위를 명확히 구분한다.
+
+- **연구/실험 범위**: Meta-Rule 생성 → 삽입 → 재평가까지 완전 자동 루프로 실행하여 방어율 향상을 측정한다 (본 논문의 정량 결과는 모두 이 완전 자동 루프의 산출물).
+- **실무 배포 시 권장사항 (향후 과제로 명시)**: 생성된 Meta-Rule을 프로덕션에 반영하기 전 사람의 최종 승인 게이트(human-in-the-loop review)를 두는 것을 권장하며, 이는 본 연구의 실험 범위에는 포함되지 않는다.
+
+이 구분을 명확히 함으로써, "Self-Healing"이라는 용어가 실험 설계상 정확히 어떤 자동화 수준을 가리키는지에 대한 모호성을 제거한다.
+
 ---
 
 ## 제5장. 실험 및 평가 (Experimental Setup & Results)
 
 ### 5.1. 실험 환경 및 대상 고객 조직 모델링
 
-본 메커니즘의 효과를 검증하기 위해 B2B 고객사 사례로 '가전 유통 기업(A사)'을 모델링하여 실험을 진행하였다.
+본 메커니즘의 효과를 검증하기 위해 B2B 고객사 사례로 '가전 유통 기업(A사)'을 모델링하여 실험을 진행하였다. 본 실험은 제안 메커니즘의 실행 가능성(feasibility)을 검증하는 **단일 도메인 파일럿 사례 연구**로 설계되었으며, 다중 도메인 일반화는 §6.3(한계점)에서 향후 과제로 다룬다.
 
 - 고객사 요구 페르소나: 한국어를 사용하는 친절한 여성 직원 (-해요체)
 - 핵심 제약 조건: 타사 비하 금지, 허위 결함 동조 금지, 내부 메타데이터 은닉, 단답형 응대, 제품 안내 업무 범위 유지
