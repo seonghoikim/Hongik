@@ -8,7 +8,7 @@ import json
 import re
 from dataclasses import dataclass
 
-from .llm_client import META_RULE_MARKER, LLMClient
+from .llm_client import META_RULE_MARKER, LLMClient, complete_json_with_retry
 
 _SYSTEM_PROMPT = f"""{META_RULE_MARKER}
 당신은 AI 챗봇의 요구사항 명세서(SRS)를 보강하는 엔지니어입니다. 아래
@@ -71,7 +71,6 @@ def generate_meta_rules(
         f"[이번 라운드 실패 사례]\n{_format_cases(failure_cases)}"
     )
 
-    raw = llm_client.complete(_SYSTEM_PROMPT, user_prompt, temperature)
-    data = _extract_json(raw)
+    data = complete_json_with_retry(llm_client, _SYSTEM_PROMPT, user_prompt, temperature, _extract_json)
     rules = [str(r) for r in data.get("new_rules", [])]
     return [r for r in rules if r not in existing_rules]

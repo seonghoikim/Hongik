@@ -16,6 +16,8 @@ class Config:
     openai_model: str
     gemini_api_key: str | None
     gemini_model: str
+    anthropic_api_key: str | None
+    anthropic_model: str
     llm_temperature: float
     judge_temperature: float
 
@@ -24,9 +26,11 @@ def load_config() -> Config:
     return Config(
         provider=os.getenv("LLM_PROVIDER", "mock").lower(),
         openai_api_key=os.getenv("OPENAI_API_KEY") or None,
-        openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        openai_model=os.getenv("OPENAI_MODEL", "gpt-5.4"),
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
-        gemini_model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash"),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY") or None,
+        anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         llm_temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
         judge_temperature=float(os.getenv("JUDGE_TEMPERATURE", "0")),
     )
