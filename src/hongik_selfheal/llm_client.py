@@ -156,7 +156,21 @@ class GeminiClient(LLMClient):
             response = model.generate_content(
                 user, generation_config={"temperature": temperature}
             )
-            text = response.text or ""
+            try:
+                text = response.text or ""
+            except ValueError as e:
+                # 프롬프트/응답이 세이프티 필터(예: 민감 개인정보 후보 텍스트)에
+                # 걸리면 candidate에 텍스트 Part가 아예 없어 .text 접근 자체가
+                # 예외를 던진다. Anthropic의 stop_reason='refusal'과 같은 계열의
+                # 현상이므로 동일하게 LLMRefusalError로 변환해 크래시를 막는다
+                # (thesis.md §3.6.3).
+                finish_reason = None
+                if response.candidates:
+                    finish_reason = getattr(response.candidates[0], "finish_reason", None)
+                raise LLMRefusalError(
+                    "Gemini가 안전성 정책으로 응답을 거부/중단했습니다 "
+                    f"(finish_reason={finish_reason!r}): {e}"
+                ) from e
             usage = getattr(response, "usage_metadata", None)
             self._log(
                 role, system, user, text, model_version=self._model_name,

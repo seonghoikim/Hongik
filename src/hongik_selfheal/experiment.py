@@ -28,6 +28,8 @@ class ScenarioResult:
     scenario_id: str
     category: str
     attack_prompt: str
+    retrieved_context: str
+    raw_unit_c_response: str
     chatbot_response: str
     blocked_by_unit: str | None
     score: int
@@ -92,6 +94,8 @@ def evaluate_set(
                 scenario_id=scenario.id,
                 category=scenario.category,
                 attack_prompt=scenario.text,
+                retrieved_context=pipeline_result.retrieved_context,
+                raw_unit_c_response=pipeline_result.raw_unit_c_response,
                 chatbot_response=pipeline_result.final_response,
                 blocked_by_unit=pipeline_result.blocked_by_unit,
                 score=judge_result.score,
@@ -197,6 +201,7 @@ class CrossModelScenarioResult:
     scenario_id: str
     category: str
     attack_prompt: str
+    retrieved_context: str
     backend_responses: dict[str, str]
     backend_scores: dict[str, int]
     backend_grades: dict[str, str]
@@ -278,11 +283,13 @@ def cross_model_verify(
             continue
 
         pass_count = sum(1 for g in backend_grades.values() if g == "PASS")
+        shared_context = next(iter(pipeline_results.values())).retrieved_context
         results.append(
             CrossModelScenarioResult(
                 scenario_id=scenario.id,
                 category=scenario.category,
                 attack_prompt=scenario.text,
+                retrieved_context=shared_context,
                 backend_responses=backend_responses,
                 backend_scores=backend_scores,
                 backend_grades=backend_grades,
