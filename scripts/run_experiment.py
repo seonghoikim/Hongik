@@ -157,7 +157,10 @@ def main() -> None:
     )
     print(f"[run_experiment] healing={len(healing_set)} held_out={len(held_out_set)}")
 
-    srs_dir = Path(__file__).resolve().parent.parent / "data" / "srs"
+    # 실행마다 별도 하위 폴더에 저장한다 - v1.1처럼 버전 번호가 같은 파일이 실행마다
+    # 재생성되므로, 공유 data/srs/ 루트에 그대로 쓰면 이전 실행의 Meta-Rule 히스토리를
+    # 덮어써 버린다(2026-08-04, 실제로 7차 파일럿 v1.1~v1.5가 8차 실행에 덮어써짐).
+    srs_dir = Path(__file__).resolve().parent.parent / "data" / "srs" / run_id
     output = run_full_experiment(
         initial_srs_v1(),
         healing_set,

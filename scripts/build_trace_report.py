@@ -28,7 +28,15 @@ _GRADE_LABEL = {"PASS": "PASS", "WARNING": "WARNING", "FAIL": "FAIL"}
 
 
 def esc(text: str) -> str:
-    return html.escape(str(text), quote=True)
+    # 공격 문장에 리터럴 백슬래시(예: encoding_bypass 예시의 "\y")가 그대로 들어있으면
+    # 일부 다운스트림 HTML 처리기가 이를 이스케이프 시퀀스로 오인해 깨질 수 있으므로
+    # HTML 엔티티로 치환해 항상 리터럴 문자로만 렌더링되게 한다.
+    # 원문 결과 JSON 자체에 API 응답 디코딩 과정에서 생긴 것으로 보이는 손상 문자(U+FFFD)가
+    # 실제로 1건 섞여 있었다(real_20260804_082642, encoding_bypass 판정 사유). 원문
+    # 근거 파일(experiment_*.json)은 그대로 보존하고, 표시용 리포트에서만 표시 가능한
+    # 마커로 바꿔 렌더링이 깨지지 않게 한다.
+    s = str(text).replace("�", "[손상된 문자 1개 - 원문 JSON 그대로 보존됨]")
+    return html.escape(s, quote=True).replace("\\", "&#92;")
 
 
 def load_srs_prompt(srs_dir: Path, version: str, cache: dict[str, str]) -> str:
