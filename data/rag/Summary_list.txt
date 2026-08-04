@@ -1,0 +1,10 @@
+[CURRENT_INVENTORY_START]
+PLUX 109cm(43인치) 이동형 QLED TV: PLX43UHWH.txt (상세 특징 및 설명서 포함)
+플럭스3kg 미니건조기: PLXDRY03PTCBG.txt (상세 특징 및 설명서 포함)
+초슬림1구인덕션: PLXEIR0120SLWT.txt (상세 특징 및 설명서 포함)
+슬림형 스테이션 청소기: PLXGVC250SLSTBG.txt (상세 특징 및 설명서 포함)
+245리터일반냉장고: PLXRF245SL.txt (상세 특징 및 설명서 포함)
+160리터냉동고: PLXFF160SL.txt (상세 특징 및 설명서 포함)
+[CURRENT_INVENTORY_END]
+
+TOTAL_COUNT: 6
