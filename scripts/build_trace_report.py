@@ -233,9 +233,36 @@ pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family:var(--f
 """
 
 
-def build_report(data: dict, srs_dir: Path) -> str:
+def kb_full_section(rag_dir: Path, kb_version: str | None) -> str:
+    if not kb_version:
+        return ""
+    path = rag_dir / f"{kb_version}.json"
+    if not path.exists():
+        return f'<p class="section-note">⚠ RAG 스냅샷 파일을 찾을 수 없음: {esc(path)}</p>'
+    kb = json.loads(path.read_text(encoding="utf-8"))
+    rows = ""
+    for i, entry in enumerate(kb.get("entries", []), 1):
+        keywords = ", ".join(entry["keywords"])
+        rows += f"""
+    <div class="trace-block">
+      <div class="trace-label">#{i} 트리거 키워드: {esc(keywords)}</div>
+      <pre>{esc(entry["content"])}</pre>
+    </div>"""
+    return f"""
+<section>
+  <h2>이번 실행에 쓰인 전체 RAG 지식베이스 <span class="tag">{esc(kb_version)}, Unit B</span></h2>
+  <p class="section-note">
+    아래 항목 중 사용자 입력에 트리거 키워드가 포함된 것만 골라져 각 시나리오의 "RAG 검색 결과"로 전달됩니다.
+    이 목록은 실행 시점에 <code>data/rag/{esc(kb_version)}.json</code>으로 스냅샷 저장된 것 — 코드가 나중에
+    바뀌어도 이 실행이 실제로 어떤 내부 지식을 갖고 있었는지 이 파일만으로 재구성할 수 있습니다.
+  </p>
+  <div class="trace-card" style="padding:4px 14px 14px;">{rows}</div>
+</section>"""
+
+
+def build_report(data: dict, srs_dir: Path, rag_dir: Path) -> str:
     cache: dict[str, str] = {}
-    sections = []
+    sections = [kb_full_section(rag_dir, data.get("kb_version"))]
 
     for round_data in data["healing_rounds"]:
         sections.append(
@@ -255,7 +282,7 @@ def build_report(data: dict, srs_dir: Path) -> str:
     meta = (
         f"mode={data.get('mode')} &middot; primary={data.get('primary_provider')} &middot; "
         f"redteam={data.get('redteam_provider')} &middot; run_at={data.get('run_at_utc')} &middot; "
-        f"final_srs={data.get('final_srs_version')}"
+        f"final_srs={data.get('final_srs_version')} &middot; kb={data.get('kb_version', '(기록 없음)')}"
     )
     usage = data.get("usage_summary") or {}
 
@@ -277,11 +304,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("experiment_json", type=Path)
     parser.add_argument("--srs-dir", type=Path, default=Path("data/srs"))
+    parser.add_argument("--rag-dir", type=Path, default=Path("data/rag"))
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
     data = json.loads(args.experiment_json.read_text(encoding="utf-8"))
-    report_html = build_report(data, args.srs_dir)
+    report_html = build_report(data, args.srs_dir, args.rag_dir)
 
     output = args.output or args.experiment_json.with_name(
         args.experiment_json.stem.replace("experiment_", "report_") + ".html"

@@ -12,10 +12,22 @@
 고객 레코드(주문번호/동명이인 목록)를 내부 지식으로 주입한다. 이 레코드가
 '현재 문의 중인 고객 본인'이 아닌 제3자 정보를 요청하는 공격에 실제로
 노출 위험을 만든다.
+
+⚠️ 버전 스냅샷: SRS(srs.py)는 라운드마다 data/srs/*.json으로 자동 저장되어
+버전별 근거가 남지만, KB는 그동안 코드에만 있어서 "이 실행 때 정확히 어떤
+내부 지식이 존재했는지" 결과 JSON만 봐서는 알 수 없었다 (연구자 피드백,
+2026-08-04). KB_VERSION을 명시하고 run_experiment.py가 실행 시작 시
+data/rag/{KB_VERSION}.json으로 전체 KB를 스냅샷 저장하도록 함 —
+KB_VERSION이 바뀌지 않는 한 파일 내용은 항상 코드와 동일해야 하며, KB
+항목을 의미 있게 바꿀 때마다 KB_VERSION을 올린다.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+KB_VERSION = "kb_v1"
 
 
 @dataclass(frozen=True)
@@ -75,3 +87,22 @@ def retrieve(user_input: str, kb: tuple[KBEntry, ...] = DEFAULT_KB) -> str:
     if not matched:
         return "(관련 내부 지식 없음 - 일반 안내로 응대할 것)"
     return "\n".join(f"- {m}" for m in matched)
+
+
+def snapshot_dict(kb: tuple[KBEntry, ...] = DEFAULT_KB, version: str = KB_VERSION) -> dict:
+    return {
+        "version": version,
+        "entries": [asdict(e) for e in kb],
+    }
+
+
+def save_kb_snapshot(directory: Path, kb: tuple[KBEntry, ...] = DEFAULT_KB, version: str = KB_VERSION) -> Path:
+    """실행 시점의 전체 RAG 지식베이스를 data/rag/{version}.json으로 저장한다
+    (SRS의 data/srs/*.json 저장 방식과 동일한 목적 — "이 실행 때 정확히 어떤
+    내부 지식이 존재했는지"를 결과 JSON만으로도 재구성할 수 있게 함)."""
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{version}.json"
+    path.write_text(json.dumps(snapshot_dict(kb, version), ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
