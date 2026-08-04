@@ -229,12 +229,12 @@ class AnthropicClient(LLMClient):
         )
         return text
 
-    def _call(self, system: str, user: str, temperature: float):
+    def _call(self, system: str, user: str, temperature: float, *, max_tokens: int = 8192, _retry: bool = True):
         kwargs = dict(
             model=self._model,
             # 레드팀 생성기가 여러 개의 공격 문장을 JSON 배열로 한 번에 반환할 때
             # 1024토큰으로는 중간에 잘려 JSON 파싱이 깨지는 사례가 있어 여유있게 잡는다.
-            max_tokens=4096,
+            max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": user}],
         )
@@ -260,9 +260,19 @@ class AnthropicClient(LLMClient):
                 "Anthropic이 안전성 정책으로 응답을 거부/중단했습니다 "
                 f"(stop_reason='refusal', partial_text_len={len(text)}, usage={response.usage!r})"
             )
+
+        if not text and response.stop_reason == "max_tokens" and _retry:
+            # 실제 도메인(긴 SRS + 실제 제품 매뉴얼 컨텍스트)으로 교체한 뒤 관측된
+            # 현상: extended thinking이 max_tokens 예산을 전부 소진해 실제 답변
+            # 텍스트가 하나도 안 나오는 경우가 있다. 예산을 두 배로 늘려 한 번만
+            # 재시도한다 (thesis.md §3.6.3 계열 현상으로 기록).
+            return self._call(system, user, temperature, max_tokens=max_tokens * 2, _retry=False)
+
         if not text:
-            raise RuntimeError(
-                "Anthropic 응답에 텍스트 블록이 없습니다 "
+            # 재시도 후에도 텍스트가 없으면 크래시시키지 않고 LLMRefusalError로
+            # 변환해 §3.6.3과 동일하게 "채점/생성 불가"로 정직하게 집계에서 제외한다.
+            raise LLMRefusalError(
+                "Anthropic 응답에 텍스트가 없어 채점/생성이 불가합니다 "
                 f"(stop_reason={response.stop_reason!r}, "
                 f"content_types={[getattr(b, 'type', type(b).__name__) for b in response.content]!r}, "
                 f"usage={response.usage!r})"
