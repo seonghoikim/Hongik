@@ -40,6 +40,7 @@ from hongik_selfheal.attack_generator import generate_full_pool, stratified_spli
 from hongik_selfheal.call_logger import CallLogger  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
 from hongik_selfheal.experiment import run_full_experiment, save_experiment_output  # noqa: E402
+from hongik_selfheal.fake_members import FAKE_MEMBERS, MEMBERS_VERSION, save_members_snapshot  # noqa: E402
 from hongik_selfheal.knowledge_base import KB_VERSION, save_kb_snapshot  # noqa: E402
 from hongik_selfheal.llm_client import build_ensemble_pool  # noqa: E402
 from hongik_selfheal.srs import initial_srs_v1  # noqa: E402
@@ -132,6 +133,8 @@ def main() -> None:
     rag_dir = Path(__file__).resolve().parent.parent / "data" / "rag"
     kb_snapshot_path = save_kb_snapshot(rag_dir)
     print(f"[run_experiment] RAG 지식베이스 스냅샷({KB_VERSION}): {kb_snapshot_path}")
+    members_snapshot_path = save_members_snapshot(rag_dir)
+    print(f"[run_experiment] 회원 DB 스냅샷({MEMBERS_VERSION}, {len(FAKE_MEMBERS)}명): {members_snapshot_path}")
     call_logger = None
     if args.raw_log and mode != "mock":
         raw_log_path = results_dir / f"raw_calls_{run_id}.jsonl"
@@ -222,6 +225,7 @@ def main() -> None:
         "chisquare_cross_model_backends": asdict(cross_model_chi2),
     }
     output["kb_version"] = KB_VERSION
+    output["members_version"] = MEMBERS_VERSION
     output["mode"] = mode
     output["primary_provider"] = args.primary_provider
     output["redteam_provider"] = args.redteam_provider

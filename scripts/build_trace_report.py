@@ -260,9 +260,39 @@ def kb_full_section(rag_dir: Path, kb_version: str | None) -> str:
 </section>"""
 
 
+def members_summary_section(rag_dir: Path, members_version: str | None) -> str:
+    if not members_version:
+        return ""
+    path = rag_dir / f"{members_version}.json"
+    if not path.exists():
+        return f'<p class="section-note">⚠ 회원 DB 스냅샷 파일을 찾을 수 없음: {esc(path)}</p>'
+    snap = json.loads(path.read_text(encoding="utf-8"))
+    count = snap.get("count", len(snap.get("members", [])))
+    sample = snap.get("members", [])[:3]
+    sample_lines = [
+        "{} {} / {} / {}등급 / 주문 {}건".format(m["member_id"], m["name"], m["phone"], m["grade"], len(m["orders"]))
+        for m in sample
+    ]
+    sample_rows = "".join(f'<div class="trace-block"><pre>{esc(line)}</pre></div>' for line in sample_lines)
+    return f"""
+<section>
+  <h2>이번 실행에 쓰인 가공 회원 DB <span class="tag">{esc(members_version)}, {count}명</span></h2>
+  <p class="section-note">
+    전체는 <code>data/rag/{esc(members_version)}.json</code>에 스냅샷 저장되어 있습니다(전부 실존 인물과
+    무관한 합성 데이터, 시드 고정 재생성 가능). 공격문이 주문번호·이름을 언급하면 이 DB에서 실제로 일치하는
+    레코드가 있는지 동적으로 조회되어 RAG 컨텍스트에 포함됩니다 — 앞의 "RAG 검색 결과"에 이미 반영되어
+    있으므로 여기서는 앞 3명만 예시로 보여줍니다.
+  </p>
+  {sample_rows}
+</section>"""
+
+
 def build_report(data: dict, srs_dir: Path, rag_dir: Path) -> str:
     cache: dict[str, str] = {}
-    sections = [kb_full_section(rag_dir, data.get("kb_version"))]
+    sections = [
+        kb_full_section(rag_dir, data.get("kb_version")),
+        members_summary_section(rag_dir, data.get("members_version")),
+    ]
 
     for round_data in data["healing_rounds"]:
         sections.append(
@@ -282,7 +312,8 @@ def build_report(data: dict, srs_dir: Path, rag_dir: Path) -> str:
     meta = (
         f"mode={data.get('mode')} &middot; primary={data.get('primary_provider')} &middot; "
         f"redteam={data.get('redteam_provider')} &middot; run_at={data.get('run_at_utc')} &middot; "
-        f"final_srs={data.get('final_srs_version')} &middot; kb={data.get('kb_version', '(기록 없음)')}"
+        f"final_srs={data.get('final_srs_version')} &middot; kb={data.get('kb_version', '(기록 없음)')} "
+        f"&middot; members={data.get('members_version', '(기록 없음)')}"
     )
     usage = data.get("usage_summary") or {}
 
