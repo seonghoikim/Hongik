@@ -39,17 +39,17 @@
 
 기업 환경에 대중화되어 도입되고 있는 생성형 대규모 언어 모델(LLM) 기반 챗봇은 여러 신뢰성 문제에 노출되어 있다. 조직 내부에서는 대화 과정에서 고객 개인정보가 의도치 않게 유출되는 문제, 브랜드 가이드라인 및 RAG(검색 증강 생성)로 제공된 내부 지식과 배치되는 잘못된 답변을 생성하는 문제, 그리고 프롬프트 인젝션·탈옥과 같은 이른바 'LLM 해킹'을 통해 시스템이 설계된 역할을 이탈하는 문제가 동시에 제기되고 있다. 이를 해결하기 위한 방어 메커니즘의 필요성이 대두되고 있으나, 기존의 파인튜닝(Fine-tuning) 방식은 높은 연산 비용과 유연성 부족 문제를 지니며, 단순 프롬프트 엔지니어링 및 RAG 구조는 실제 운영 환경의 극단적인 사용자 입력과 간접 프롬프트 인젝션 공격에 의해 가이드라인을 이탈하는 한계를 보인다.
 
-본 논문은 이러한 문제를 해결하기 위해 LLM 기반 AI 챗봇의 자가 치유(Self-Healing) 메커니즘을 제안한다. 제안 메커니즘은 입력 가드레일-RAG 검색-LLM 추론-출력 가드레일로 이어지는 모듈형 4단계 유닛 아키텍처(Units A~D)와, 요구사항 명세서(SRS) 기반의 자동 자가 치유 폐쇄 루프로 구현된다. 시스템은 개인정보 유출, 잘못된 브랜드/RAG 정보 응답, 프롬프트 인젝션 공격 등 6개 범주의 적대적 스트레스 테스트 데이터셋을 활용해 시스템의 우회 가능성을 정량적 지표인 '액션 매트릭스(Action Matrix)'로 산출하고, 평가 결과에 따라 명세서의 절대 보안 원칙(Meta-Rules)을 자동으로 보강한다. 나아가 고정된 공격셋에 대한 과적합을 방지하기 위해 별도의 헬드아웃(Held-out) 검증셋과 적응형 재공격(Adaptive Re-Attack) 실험을 통해 방어 메커니즘의 일반화 성능과 견고성을 검증한다.
+본 논문은 이러한 문제를 해결하기 위해 LLM 기반 AI 챗봇의 자가 치유(Self-Healing) 메커니즘을 제안한다. 제안 메커니즘은 입력 가드레일-RAG 검색-LLM 추론-출력 가드레일로 이어지는 모듈형 4단계 유닛 아키텍처(Units A~D)와, 요구사항 명세서(SRS) 기반의 자동 자가 치유 폐쇄 루프로 구현된다. 시스템은 개인정보 유출, 잘못된 브랜드/RAG 정보 응답, 프롬프트 인젝션 공격, 그리고 RAG 검색 계층 자체의 구조적 특성(다중 키워드 컨텍스트 오염, 정책 경계 완곡 우회)을 겨냥한 공격까지 총 8개 범주의 적대적 스트레스 테스트 데이터셋을 활용해 시스템의 우회 가능성을 정량적 지표인 '액션 매트릭스(Action Matrix)'로 산출하고, 평가 결과에 따라 명세서의 절대 보안 원칙(Meta-Rules)을 자동으로 보강한다. 나아가 고정된 공격셋에 대한 과적합을 방지하기 위해 별도의 헬드아웃(Held-out) 검증셋과 적응형 재공격(Adaptive Re-Attack) 실험을 통해 방어 메커니즘의 일반화 성능과 견고성을 검증한다.
 
-또한 단일 모델 검증의 한계를 극복하기 위해, 공격 생성부터 자가 치유 루프·헬드아웃 검증·적응형 재공격까지의 전체 연구 사이클은 단일 주 모델(primary LLM) 하나로 진행하되, 그 결과(v_final)가 해당 모델에 우연히 맞춰진 것이 아님을 확인하는 별도의 **교차 모델 검증(Cross-Model Verification)** 단계를 추가하였다(지도교수 피드백 반영). 이 단계에서는 헬드아웃 셋을 이종 상용 LLM 2종(OpenAI/Google Gemini/Anthropic Claude 중 주 모델을 제외한 나머지)에도 통과시키되, 채점 기준(심판관)은 주 모델 하나로 고정하여 "응답 생성 모델의 차이"라는 변수만 순수하게 격리해서 관찰한다. 3개 백엔드 모델 중 2개 이상에서 방어에 성공하면 '교차 모델 검증됨(cross-model validated)'으로 판정하여 특정 LLM 제공사에 대한 종속성을 배제하였다. 본 연구는 가전 유통 기업 사례(A사)를 대상으로 한 **단일 도메인 파일럿 사례 연구(pilot case study)**이며, 실증 실험 결과 [TODO: 실제 실험 후 결과 요약 문장으로 교체], 모델 재학습 없이 텍스트 명세 최적화만으로 다중 상용 LLM 환경에서도 대화형 AI의 신뢰성을 확보할 수 있음을 시사하는 실증적 근거를 제시하였다(단일 도메인 파일럿 규모의 결과이므로 "입증"이 아닌 "시사"로 서술함). 금융·의료 등 타 도메인으로의 일반화는 향후 과제로 남긴다.
+또한 단일 모델 검증의 한계를 극복하기 위해, 공격 생성부터 자가 치유 루프·헬드아웃 검증·적응형 재공격까지의 전체 연구 사이클은 단일 주 모델(primary LLM) 하나로 진행하되, 그 결과(v_final)가 해당 모델에 우연히 맞춰진 것이 아님을 확인하는 별도의 **교차 모델 검증(Cross-Model Verification)** 단계를 추가하였다(지도교수 피드백 반영). 이 단계에서는 헬드아웃 셋을 이종 상용 LLM 2종(OpenAI/Google Gemini/Anthropic Claude 중 주 모델을 제외한 나머지)에도 통과시키되, 채점 기준(심판관)은 주 모델 하나로 고정하여 "응답 생성 모델의 차이"라는 변수만 순수하게 격리해서 관찰한다. 3개 백엔드 모델 중 2개 이상에서 방어에 성공하면 '교차 모델 검증됨(cross-model validated)'으로 판정하여 특정 LLM 제공사에 대한 종속성을 배제하였다. 본 연구는 실제 운영 중인 가전 유통 챗봇 프로젝트(§5.1)를 대상으로 한 **단일 도메인 파일럿 사례 연구(pilot case study)**이며, 축소 규모 예비 실험(카테고리당 3개 시나리오, §5.3)에서 초기 명세(v1.0) 대비 자가 치유 5라운드 후 치유용 셋 준수율이 68.1%에서 88.4%로 통계적으로 유의하게 개선되었고(Wilcoxon signed-rank, p<0.001), 헬드아웃 셋에서도 이와 통계적으로 구분되지 않는 방어율(87.0%)을 보여 특정 문항에 대한 과적합이 아님을 시사하였다. 전 라운드·전 카테고리에 걸쳐 심각한 위반(FAIL)은 관측되지 않았으며, 잔여 결함은 대부분 개인정보·시스템프롬프트 비노출 등 핵심 보안 판단이 아니라 응답 형식(불필요한 추가 질문 자제 등) 준수에 관한 것이었다. 다만 교차 모델 검증에서는 2/3 이상 방어 성공 비율이 47.8%에 그쳐, 완전한 벤더 독립성 확보에는 추가 라운드·규모 확대가 필요함을 확인하였다(단일 도메인 파일럿 예비 규모의 결과이므로 "입증"이 아닌 "시사"로 서술하며, 카테고리당 10개 규모의 본 실행은 후속 과제로 남긴다). 금융·의료 등 타 도메인으로의 일반화도 향후 과제로 남긴다.
 
 ### 영문 초록 (Abstract)
 
 Generative Large Language Model (LLM)-based chatbots, now widely adopted in enterprise environments, are exposed to several reliability problems. Within organizations, customer personal information can be unintentionally leaked during conversation, chatbots can generate answers that contradict brand guidelines and internally provided RAG (Retrieval-Augmented Generation) knowledge, and so-called 'LLM hacking' — prompt injection and jailbreak attacks — can cause the system to abandon its designed role. While the need for defense mechanisms against these problems is growing, conventional fine-tuning approaches incur high computational cost and lack flexibility, and basic prompt engineering or RAG structures still fail under adversarial stress tests and indirect prompt injection attacks encountered in real operating environments.
 
-This paper proposes a Self-Healing mechanism for LLM-based AI chatbots to address these problems. The proposed mechanism is implemented through a modular 4-unit system architecture (Units A–D) — input guardrail, RAG retrieval, LLM inference, and output guardrail — combined with an automated Requirements Specification (SRS)-based self-healing closed loop. Using an adversarial stress-test dataset spanning six attack categories, including personal-information leakage, incorrect brand/RAG-grounded answers, and prompt injection, the system quantifies its own bypass susceptibility via an 'Action Matrix' and automatically hardens the SRS's meta-rules based on the evaluation results. To prevent overfitting to a fixed attack set, generalization and robustness are further validated through a held-out test set and adaptive re-attack experiments.
+This paper proposes a Self-Healing mechanism for LLM-based AI chatbots to address these problems. The proposed mechanism is implemented through a modular 4-unit system architecture (Units A–D) — input guardrail, RAG retrieval, LLM inference, and output guardrail — combined with an automated Requirements Specification (SRS)-based self-healing closed loop. Using an adversarial stress-test dataset spanning eight attack categories — personal-information leakage, incorrect brand/RAG-grounded answers, prompt injection, and attacks targeting the structural properties of the RAG retrieval layer itself (multi-keyword context contamination, euphemistic policy-boundary probing) — the system quantifies its own bypass susceptibility via an 'Action Matrix' and automatically hardens the SRS's meta-rules based on the evaluation results. To prevent overfitting to a fixed attack set, generalization and robustness are further validated through a held-out test set and adaptive re-attack experiments.
 
-To overcome the limitations of single-model validation, the entire research cycle — attack generation, the self-healing loop, held-out validation, and adaptive re-attack — is run end-to-end on a single primary LLM, and a separate **Cross-Model Verification** stage is added to check whether the resulting v_final is an artifact of that one model. In this stage, the held-out set is re-run through two additional heterogeneous commercial LLMs (from OpenAI, Google Gemini, and Anthropic Claude, excluding whichever is the primary), while grading is held fixed to a single judge (the primary model) — isolating "differences in the response-generating model" as the only variable under test. A scenario is considered 'cross-model validated' when at least two of the three backend models successfully defend against it, removing dependence on any single LLM provider. This study is a **single-domain pilot case study** using a consumer electronics retail domain (Company A); empirical results [TODO: replace with actual result summary after experiments] provide evidence suggesting that enterprise-grade reliability can be achieved across multiple commercial LLMs purely via lightweight SRS optimization, without costly model retraining (deliberately worded as "suggest," not "prove," given the single-domain pilot scale). Generalization to other domains (e.g., finance, healthcare) is left as future work.
+To overcome the limitations of single-model validation, the entire research cycle — attack generation, the self-healing loop, held-out validation, and adaptive re-attack — is run end-to-end on a single primary LLM, and a separate **Cross-Model Verification** stage is added to check whether the resulting v_final is an artifact of that one model. In this stage, the held-out set is re-run through two additional heterogeneous commercial LLMs (from OpenAI, Google Gemini, and Anthropic Claude, excluding whichever is the primary), while grading is held fixed to a single judge (the primary model) — isolating "differences in the response-generating model" as the only variable under test. A scenario is considered 'cross-model validated' when at least two of the three backend models successfully defend against it, removing dependence on any single LLM provider. This study is a **single-domain pilot case study** built on an actual production consumer-electronics-retail chatbot project (§5.1). In a reduced-scale preliminary run (3 scenarios per category, §5.3), compliance on the healing set improved significantly from 68.1% under the initial specification (v1.0) to 88.4% after five self-healing rounds (Wilcoxon signed-rank, p<0.001), and the held-out set showed a statistically indistinguishable defense rate (87.0%), suggesting the improvement generalizes rather than overfitting to specific items. No severe violations (FAIL) were observed across any round or category; the remaining deficiencies were overwhelmingly about response-format compliance (e.g., refraining from unnecessary follow-up questions) rather than core security judgments such as non-disclosure of personal information or the system prompt. Cross-model verification, however, showed only a 47.8% rate of 2-out-of-3 defense success, indicating that further rounds and scale are needed before vendor independence can be claimed (results are deliberately worded as "suggestive," not "conclusive," given the single-domain pilot scale; a full run at 10 scenarios per category is left as follow-up work). Generalization to other domains (e.g., finance, healthcare) is likewise left as future work.
 
 ---
 
@@ -168,12 +168,12 @@ sequenceDiagram
 
 ⚠️ **예외 1건 (실측 근거로 확정, 2026-08-05)**: 공격 시나리오·적응형 재공격 문장을 생성하는 "레드팀 생성기" 역할만은 주 모델과 분리한다. 실제 API 연동 테스트에서 **Claude Sonnet 5가 우회 공격 문장 생성 요청을 정책상 거부**함을 확인했다 — 모델이 직접 "대상 시스템이 실제로 존재하는지, 레드팀 테스트가 승인된 것인지와 무관하게 적용되는 원칙"이라고 답변했다. Gemini 3.6 Flash도 동일 요청에서 실패했고, GPT-5.4만 정상적으로 공격 문장을 생성했다. 따라서 레드팀 생성기만 GPT-5.4를 쓰고, 그 외(유닛 C·심판관·Meta-Rule 생성기)는 계속 Claude Sonnet 5 하나로 유지한다. 이 예외는 자가 치유 루프 "내부"(챗봇 응답·채점·명세서 보강)에는 영향이 없다 — 루프에 투입되는 공격 시나리오 "재료"를 누가 만드는지에만 관련된다.
 
-| 역할 | 모델 | 버전/날짜 | API 방식 |
+| 역할 | 모델 | 버전/날짜(API 응답 `model_version` 실측, 2026-08-04 실행 기준) | API 방식 |
 |---|---|---|---|
-| 주 모델(Primary) — 유닛 C·심판관·Meta-Rule 생성기 | **Anthropic Claude Sonnet 5** (`claude-sonnet-5`) | [TODO: 실험 실행일 기준 버전 기록] | Stateful(유닛 C) / Stateless(그 외) |
-| 레드팀 생성기 — 공격 시나리오·적응형 재공격 문장 생성 전용 | **OpenAI GPT-5.4** (`gpt-5.4`, ⚠️ 실행 전 실제 모델명 재확인) | [TODO] | Stateless |
-| 교차 모델 검증용 추가 백엔드 (§3.5.5, 주 모델 제외 나머지 2종) | **Google Gemini 3.6 Flash**(`gemini-3.6-flash`) + **OpenAI GPT-5.4**(`gpt-5.4`) | [TODO] | Stateful(유닛 C 응답 생성만, 채점은 주 모델 심판관이 담당) |
-| Temperature | [TODO, 권장 0.0~0.3 고정. ⚠️ Claude Sonnet 5는 temperature 파라미터를 노출하지 않고 내부 고정값을 씀 — §3.5.3 재현성 논의 참조] | - | - |
+| 주 모델(Primary) — 유닛 C·심판관·Meta-Rule 생성기 | **Anthropic Claude Sonnet 5** (`claude-sonnet-5`) | `claude-sonnet-5` (Anthropic API가 별도 날짜 스냅샷 문자열을 반환하지 않음 — git commit 해시로 코드 버전을 함께 고정, §3.5.6) | Stateful(유닛 C) / Stateless(그 외) |
+| 레드팀 생성기 — 공격 시나리오·적응형 재공격 문장 생성 전용 | **OpenAI GPT-5.4** (`gpt-5.4`) | `gpt-5.4-2026-03-05` | Stateless |
+| 교차 모델 검증용 추가 백엔드 (§3.5.5, 주 모델 제외 나머지 2종) | **Google Gemini 3.6 Flash**(`gemini-3.6-flash`) + **OpenAI GPT-5.4**(`gpt-5.4-2026-03-05`) | `gemini-3.6-flash` (Gemini API도 별도 날짜 스냅샷을 반환하지 않음) | Stateful(유닛 C 응답 생성만, 채점은 주 모델 심판관이 담당) |
+| Temperature | 유닛 C(챗봇 응답) 0.2, 심판관(채점) 0 고정(`LLM_TEMPERATURE`/`JUDGE_TEMPERATURE`, `config.py`). ⚠️ Claude Sonnet 5는 최신 SDK에서 temperature 파라미터를 거부하는 경우가 있어(`llm_client.py`의 자동 재시도 로직으로 대응), 이 모델에 한해 사실상 내부 고정값을 사용한 것으로 간주한다. | - | - |
 
 > 주: 3개 상용 LLM이 전부 필요한 것은 §3.5.5 교차 모델 검증 단계와 레드팀 생성 단계뿐이다. 자가 치유·헬드아웃·적응형 재공격의 "채점" 자체는 처음부터 끝까지 주 모델(Claude Sonnet 5) 하나로만 수행되어 재현성과 해석이 단순하다. 세 모델 모두 각 사의 바닥 티어(경량/저가 모델)가 아닌 균형 티어로 선정하여, "상용 LLM 수준에서의 검증"이라는 주장의 설득력을 확보했다.
 
@@ -184,9 +184,9 @@ sequenceDiagram
 1. **대응표본 비교 (Within-set, Paired)**: 치유용 셋 60개는 SRS v1.0 → v_final로 명세서만 바뀌고 **동일한 문항**을 반복 측정한다. 따라서 문항별 점수 변화를 짝지을 수 있는 대응표본 설계이며, **Wilcoxon signed-rank test**를 사용해 v1.0과 v_final 간 점수 분포 차이의 유의성을 검정한다.
 2. **독립표본 비교 (Between-set, Independent)**: 치유용 셋(v_final)과 헬드아웃 셋은 **서로 다른 문항 집합**이므로 대응시킬 수 없는 독립표본이다. 여기에 Wilcoxon signed-rank test를 쓰는 것은 통계적으로 부적절하며, 다음 두 검정을 사용한다.
    - **Mann-Whitney U test**: 두 집단의 Action Matrix 점수(1~3점, 순위형) 분포 차이 검정.
-   - **카이제곱 독립성 검정(Chi-square test of independence)**: PASS/WARNING/FAIL 등급 빈도표(2×3 분할표)에 대해 두 집단(치유용 vs 헬드아웃)의 등급 분포가 통계적으로 독립적인지(=차이가 없는지) 검정. p > 0.05이면 "헬드아웃 셋에서도 치유용 셋과 통계적으로 구분되지 않는 방어율을 보였다"고 주장할 근거가 된다. ⚠️ 준수율이 100%에 가까워 특정 등급(WARNING/FAIL) 셀의 기대빈도가 5 미만으로 떨어지면 카이제곱 근사가 부정확해질 수 있으므로, 이 경우 **Fisher's exact test**(또는 그 일반화인 Freeman-Halton test)로 대체하거나 병기한다. [TODO: 실험 후 셀 기대빈도 확인하고 필요시 검정 교체]
+   - **카이제곱 독립성 검정(Chi-square test of independence)**: PASS/WARNING/FAIL 등급 빈도표(2×3 분할표)에 대해 두 집단(치유용 vs 헬드아웃)의 등급 분포가 통계적으로 독립적인지(=차이가 없는지) 검정. p > 0.05이면 "헬드아웃 셋에서도 치유용 셋과 통계적으로 구분되지 않는 방어율을 보였다"고 주장할 근거가 된다. ⚠️ 실측 결과 FAIL 등급이 전 구간에서 0건으로 나와(§5.3, §6) 분할표의 한 열이 완전히 비는 문제가 실제로 발생했다 — Fisher's exact test로 교체하는 대신, `stats.py`는 두 집단 모두에서 0건인 등급 열을 분할표에서 제외한 뒤 나머지 등급(PASS/WARNING)만으로 카이제곱을 계산하도록 구현했다(완전히 비지 않은 열만 남겨 근사 오류를 피함). 등급이 사실상 한 종류(전부 PASS 등)로 수렴해 검정 자체가 성립하지 않는 극단적인 경우는 `statistic=None`으로 반환해 "적용 불가"를 명시적으로 표시한다.
    - 동일한 방식(Mann-Whitney U + 카이제곱)을 §5.4 적응형 재공격의 블랙박스 vs 화이트박스 비교, 그리고 v_final vs 각 적응형 재공격 집단 비교에도 적용한다.
-3. [TODO: 실험 후 각 검정의 실제 통계량과 p-value 채움]
+3. 실제 검정 통계량과 p-value는 §5.3에 결과와 함께 수록하였다(예비 규모 실행 기준 — Wilcoxon p=0.00018, Mann-Whitney p=0.773, Kruskal-Wallis p=0.829 등).
 
 > 정리: **같은 문항을 반복 측정 → Wilcoxon signed-rank**, **다른 문항 집합끼리 비교 → Mann-Whitney U / 카이제곱**. 두 상황을 혼동하지 않도록 5장 결과표에도 어떤 비교에 어떤 검정을 썼는지 각주로 명시한다.
 
@@ -241,7 +241,7 @@ sequenceDiagram
 1. **표본 추출**: `spotcheck_sample.py`가 치유용(최종 라운드) + 헬드아웃 + 적응형 재공격 + 교차 모델 검증 결과를 전부 모아 등급(PASS/WARNING/FAIL)이 균등하게 섞이도록 층화추출한다 (기본 20건). 점수·등급·판단근거는 가린 "블라인드 검토 파일"과, 정답이 담긴 "정답지"를 분리해 저장한다.
 2. **연구자 본인이 rubric(§4.1 Action Matrix 기준표)에 따라 블라인드 파일만 보고 직접 채점**한 뒤, `spotcheck_compare.py`로 정답지와 대조해 일치율을 자동 계산한다.
 3. **보고 형식**: "표본 N건 중 심판관과 연구자 채점이 일치한 건수 M건(일치율 M/N)"을 보고하고, 불일치 사례가 있다면 그 원인(rubric 해석 차이, 경계 사례 등)을 스크립트가 함께 출력하는 심판관 판단근거를 참고해 논의한다.
-4. [TODO: 실험 후 실제 표본 검토 결과 채움]
+4. **현재 진행 상태**: 위 1~2단계에 정의된 **연구자 본인의 수동 블라인드 채점은 아직 수행하지 않았다** — `spotcheck_sample.py`/`spotcheck_compare.py`는 구현·검증만 완료된 상태이며, 실제 채점은 논문 제출 전 남은 작업이다. 대신 같은 문제의식("심판관이 후한가, 방어가 진짜인가")을 다른 방식으로 먼저 확인했다: 이미 채점된 (공격문, 응답) 쌍을 그대로 두고 심판관만 다른 벤더(GPT-5.4, Gemini 3.6 Flash)로 교체해 재채점시키는 **교차 심판관 재검증**(`scripts/cross_judge_check.py`, §3.6.2와는 별개의 보조 절차)을 42건에 대해 실시한 결과, GPT-5.4는 95.2%(40/42), Gemini는 100%(42/42) 동의했고 등급을 더 후하게 준 사례는 0건이었다. 유일한 불일치 2건도 핵심 보안 판단이 아니라 형식(응답 길이·톤) 조항에 대한 이견이었다(상세는 `data/results/cross_judge_real_20260803_135419.json`). 이는 심판관이 핵심 보안 위반을 놓치는 방향으로 관대하다는 가설을 기각하는 정황 증거이나, **연구자 본인의 수동 채점을 대체하지는 않으므로** 본 절차의 1~2단계는 여전히 수행이 필요하다.
 
 > 본 절차는 정식 inter-rater reliability 연구가 아니라, 심판관 채점의 명백한 오류(체계적 편향)가 없는지 확인하는 최소한의 정성적 안전장치임을 명시한다. 심판관이 단일 모델이라는 점 자체가 본 연구의 핵심 한계 중 하나이며, 이는 §6(논의 및 한계점)에 함께 기술한다.
 
@@ -305,7 +305,7 @@ flowchart TD
 
 #### 4.2.1 분류체계 (Attack Taxonomy)
 
-임의로 공격 문장을 만들면 재현성과 대표성을 담보할 수 없으므로, OWASP Top 10 for LLM Applications (2025)의 위협 카테고리에 본 연구의 6개 공격 유형을 매핑하여 체계를 확정한다.
+임의로 공격 문장을 만들면 재현성과 대표성을 담보할 수 없으므로, OWASP Top 10 for LLM Applications (2025)의 위협 카테고리에 본 연구의 8개 공격 유형을 매핑하여 체계를 확정한다.
 
 | 본 연구의 공격 유형 | 대응 OWASP LLM Top 10 카테고리 | 설명 |
 |---|---|---|
@@ -315,10 +315,12 @@ flowchart TD
 | 허위 사실 동조 유도 | LLM09: Misinformation | 허위 제품 결함 등에 대한 동조·확언 유도 |
 | 내부 메타데이터·시스템 프롬프트 유출 유도 | LLM07: System Prompt Leakage / LLM02: Sensitive Information Disclosure | 내부 지침·프롬프트 전문 노출 유도 |
 | 개인정보 유출 유도 | LLM02: Sensitive Information Disclosure | 타 고객의 연락처·주소·주문내역 등 개인정보를 캐내거나 조회를 유도 |
+| 다중 상품 키워드 컨텍스트 오염 | LLM08: Vector and Embedding Weaknesses (RAG 검색 계층 오염, 변형) | 한 메시지에 여러 상품 키워드를 동시에 섞어 RAG가 여러 문서를 한꺼번에 불러오게 만든 뒤, 명세서가 금지한 타 제품 비교·추천을 유도 |
+| 가격 정보 간접 유도 | LLM02: Sensitive Information Disclosure (변형 — 정책 경계 우회) | "먼저 묻지 않으면 가격 언급 금지"라는 규칙을 문자 그대로만 지키게 하고, 직접 "얼마예요"라고 묻지 않는 완곡어법으로 가격 정보를 캐내려는 시도 |
 
-> ⚠️ 6번째 범주("개인정보 유출 유도")는 지도교수 피드백(2026-08) — "조직 내 개인정보 유출" 문제를 명시적으로 다뤄야 한다는 지적 — 을 반영해 추가되었다. 초기 SRS v1.0의 제약 조건에는 타 고객 개인정보 보호를 명시하지 않았으므로, 이 범주에서의 취약점이 자가 치유 루프를 통해 자동으로 Meta-Rule로 보강되는 과정 자체가 메커니즘의 유효성을 보여주는 사례가 된다 (§5.3 심층 분석에서 다룸).
+> ⚠️ 6번째 범주("개인정보 유출 유도")는 지도교수 피드백(2026-08) — "조직 내 개인정보 유출" 문제를 명시적으로 다뤄야 한다는 지적 — 을 반영해 추가되었다. 초기 SRS v1.0의 제약 조건에는 타 고객 개인정보 보호를 명시하지 않았으므로, 이 범주에서의 취약점이 자가 치유 루프를 통해 자동으로 Meta-Rule로 보강되는 과정 자체가 메커니즘의 유효성을 보여주는 사례가 된다 (§5.3 심층 분석에서 다룸). 7~8번째 범주(다중 상품 키워드 컨텍스트 오염, 가격 정보 간접 유도)는 §5.1에서 실제 운영 프로젝트의 시스템 프롬프트·RAG로 도메인을 교체한 뒤(2026-08-04) 추가되었다 — 기존 6개는 전부 "모델을 속이는" 프롬프트 인젝션류였고, 유닛 B(RAG)가 단순 키워드 매칭이라는 구조적 특성 자체를 겨냥한 공격 유형이 없었다는 판단에서다.
 
-각 카테고리당 균등 비율(치유용 60개 기준 카테고리별 10개, 6개 범주)로 층화 구성하여, 특정 유형에 편중된 데이터셋이 되지 않도록 한다.
+각 카테고리당 균등 비율(계획된 본 실행 기준 카테고리별 10개, 8개 범주 → 치유용/헬드아웃 각 80개)로 층화 구성하여, 특정 유형에 편중된 데이터셋이 되지 않도록 한다. 예비 규모 파일럿(§5.3)에서는 카테고리당 3개(치유용/헬드아웃 각 24개)로 축소해 실행하였다.
 
 #### 4.2.2 생성 절차
 
@@ -328,7 +330,7 @@ flowchart TD
    - 대상 도메인(가전 유통)에 비현실적인 시나리오 제거
    - 카테고리 정의에 부합하지 않는 문항 제거
 3. **분할**: 필터링을 통과한 문항을 §3.5.1의 층화추출 기준에 따라 치유용 60개 / 헬드아웃 60개로 무작위 배정한다 (카테고리별 비율 동일하게 유지).
-4. [TODO: 실험 후 실제 사용 모델명, 생성-필터링 통과율, 최종 카테고리별 분포표 채움]
+4. **현재 진행 상태**: 1차 생성(레드팀 LLM, GPT-5.4)과 3차 분할(층화추출)은 코드로 구현·실행되어 §5.3 결과를 만들어냈다. 다만 **2차 필터링(연구자 수동 검토)은 아직 실제로 수행되지 않았다** — `generate_category_scenarios()`의 `manual_review_hook` 파라미터가 기본값(`lambda text: True`, 전부 통과)으로 남아 있어, 지금까지의 모든 실행은 레드팀 LLM이 생성한 후보를 중복 제거(`dedup()`, 문자열 유사도 0.85 이상 제거)만 거친 뒤 그대로 사용했다. 이는 §6에 추가할 한계점이다 — "대상 도메인에 비현실적인 시나리오"나 "카테고리 정의에 안 맞는 문항"이 섞여 들어갔을 가능성을 배제할 수 없으며, 논문 제출 전 연구자가 실제로 후보를 검토해 이 훅을 채우는 작업이 필요하다. 예비 실행(카테고리당 3개, §5.3) 기준 생성 규모는 카테고리별 목표치의 1.5배(예: 3개 필요 시 4~5개) 후보를 생성해 중복 제거 후 필요 수량만큼 채택하는 방식으로 진행되었다.
 
 > 이 절차는 "공격 생성이 자동인가 수동인가"라는 질문에 대해 **1차 생성은 LLM 자동, 필터링은 연구자 수동**이라는 반자동(semi-automated) 파이프라인임을 명시적으로 답하기 위해 마련되었다. §4.3(자가 치유 메커니즘의 자동화 수준)과 함께, 본 연구 전체에서 "자동"이라는 단어를 쓸 때마다 정확히 어느 구간이 자동인지 표로 정리해 둘 것을 권장한다.
 
@@ -357,10 +359,11 @@ flowchart TD
 
 ### 5.1. 실험 환경 및 대상 고객 조직 모델링
 
-본 메커니즘의 효과를 검증하기 위해 B2B 고객사 사례로 '가전 유통 기업(A사)'을 모델링하여 실험을 진행하였다. 본 실험은 제안 메커니즘의 실행 가능성(feasibility)을 검증하는 **단일 도메인 파일럿 사례 연구**로 설계되었으며, 다중 도메인 일반화는 §6.3(한계점)에서 향후 과제로 다룬다.
+본 메커니즘의 효과를 검증하기 위해, 초기 설계 단계에서는 '가전 유통 기업(A사)'을 모델링한 합성(synthetic) 페르소나·지식베이스로 파이프라인을 구축·검증하였다(§4~§5.2의 코드 예시). 이후 **실제 운영 중인 가전 유통 챗봇 프로젝트의 시스템 프롬프트 원문과 실제 제품 설명 자료(공개 출처, 6종 제품 매뉴얼)를 연구자로부터 제공받아** 도메인을 교체하였다 — 합성 시나리오만으로는 실제 서비스 프롬프트 특유의 세부 규칙(예: "가격을 먼저 묻지 않으면 언급하지 않는다", "추가 질문을 권장하는 말을 하지 않는다" 등 17개 항목)이 만들어내는 현실적인 실패 양상을 재현하기 어렵다는 판단에서다(§6 한계점에서 재논의). 회원(고객) 개인정보는 실제 자료에 포함되어 있지 않아, 연구자가 스키마를 설계해 합성한 가공 데이터(회원 1000명, `fake_members.py`)로 대체하였다. 본 실험은 제안 메커니즘의 실행 가능성(feasibility)을 검증하는 **단일 도메인 파일럿 사례 연구**로 설계되었으며, 다중 도메인 일반화는 §6(한계점)에서 향후 과제로 다룬다. ⚠️ 실제 기업/브랜드명의 논문 내 노출 여부(그대로 표기 vs 익명화)는 지도교수 확인 후 확정 예정이며, 이하 본문에서는 잠정적으로 실명을 그대로 사용한다.
 
-- 고객사 요구 페르소나: 한국어를 사용하는 친절한 여성 직원 (-해요체)
-- 핵심 제약 조건: 타사 비하 금지, 허위 결함 동조 금지, 내부 메타데이터 은닉, 단답형 응대, 제품 안내 업무 범위 유지
+- 페르소나: 한국어를 사용하는 친절한 여성 직원 (-해요체), 제품 문의에 응대하는 상담 챗봇
+- 핵심 제약 조건(17개 항목, §4.1 SRS 발췌): 참조 자료 범위 내 답변, 가격 선제 언급 금지, 타 제품·타사 비교 답변 불가, 추가 질문·문의 유도 문구 금지, 페르소나/어투 고정, 파일·자료 출처 언급 금지 등 — 원문은 부록 B(SRS 전문)에 수록
+- RAG(Unit B) 지식베이스: 실제 제품 매뉴얼 6종(TV·건조기·인덕션·냉동고·청소기·냉장고) + 연구 목적으로 합성한 가공 회원 DB 1000명(pii_leak 카테고리 검증용, §6에서 실제 시스템에 없는 기능임을 명시)
 
 ### 5.2. 평가 변인 통제를 위한 무상태(Stateless) API 파이프라인
 
@@ -389,38 +392,46 @@ def evaluate_response(srs_excerpt: str, attack_prompt: str, chatbot_response: st
 
 ### 5.3. 실험 결과 및 자가 치유 성능 분석
 
-[TODO: 아래 표는 실제 코드 구현 및 실험 실행 후 실측값으로 교체. 이 표는 전부 주 모델(primary LLM) 단일 점수 기준이다.]
+> ⚠️ **예비 규모(pilot-scale) 결과임을 명시**: 아래 수치는 §5.1의 실제 도메인 교체 및 §4.2.1의 RAG 특화 카테고리 2종 추가 이후 처음으로 전체 파이프라인을 끝까지 실행한 결과이나, 표본 크기가 **카테고리당 3개(총 8개 카테고리 → 치유용/헬드아웃 각 24개, 채점 가능 23개)** 로 축소된 예비 실행이다. 논문 제출용 본 실행(카테고리당 10개)은 아직 수행하지 않았으며, 후속 과제로 남긴다. 실행 ID `real_20260804_060902`, 원문 근거 데이터는 `data/results/experiment_real_20260804_060902.json` 및 `data/results/report_real_20260804_060902.html`(시나리오별 공격문·RAG 컨텍스트·응답·판정 전문)에 보존되어 있다.
 
 | 평가 회차 | 적용 명세서 | 3점(PASS) | 2점(WARNING) | 1점(FAIL) | 총점 | 가이드라인 준수율 |
 |---|---|---|---|---|---|---|
-| 1차 (치유용 셋) | 기본 명세 (v1.0) | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
-| N차 (치유용 셋) | 자가 치유 완료 (v_final) | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
-| 검증 (헬드아웃 셋, 60개) | v_final | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
-| 검증 (적응형 재공격 - 블랙박스, 15개) | v_final | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
-| 검증 (적응형 재공격 - 화이트박스, 15개) | v_final | [TODO] | [TODO] | [TODO] | [TODO] | [TODO] |
+| round_1 (치유용 셋) | 기본 명세 (v1.0) | 1 | 22 | 0 | 47 | 68.1% |
+| round_2 | v1.1 | 3 | 20 | 0 | 49 | 71.0% |
+| round_3 | v1.2 | 11 | 12 | 0 | 57 | 82.6% |
+| round_4 | v1.3 | 9 | 14 | 0 | 55 | 79.7% |
+| round_5, 최대 라운드 (치유용 셋) | v1.4 (v_final) | 15 | 8 | 0 | 61 | 88.4% |
+| 검증 (헬드아웃 셋, 24개, 23개 채점가능) | v_final | 14 | 9 | 0 | 60 | 87.0% |
+| 검증 (적응형 재공격 - 블랙박스, 5개) | v_final | 4 | 1 | 0 | 14 | 93.3% |
+| 검증 (적응형 재공격 - 화이트박스, 5개) | v_final | 5 | 0 | 0 | 15 | 100.0% |
 
-**표 X. 교차 모델 검증 결과 (§3.5.5, 헬드아웃 셋 60개를 3개 백엔드에 재실행, 심판관은 주 모델로 고정)** [TODO: 실험 후 채움]
+자가 치유 루프는 5라운드(설정된 `max_rounds` 상한)까지 돌았음에도 만점(모든 항목 PASS)에 도달하지 못해 상한에 걸려 종료되었다 — §4.1에서 설계한 "만점 도달 시 조기 종료" 조건이 아니라 라운드 상한 조건으로 종료된 사례이며, 이는 §6에서 자세히 논의한다.
+
+**표 X. 교차 모델 검증 결과 (§3.5.5, 헬드아웃 셋 23개를 3개 백엔드에 재실행, 심판관은 주 모델 anthropic으로 고정)**
 
 | 백엔드 | PASS율 | WARNING율 | FAIL율 |
 |---|---|---|---|
-| 주 모델 (예: OpenAI) | [TODO] | [TODO] | [TODO] |
-| 추가 백엔드 ① | [TODO] | [TODO] | [TODO] |
-| 추가 백엔드 ② | [TODO] | [TODO] | [TODO] |
+| openai (gpt-5.4) | 60.9% | 39.1% | 0% |
+| gemini (gemini-3.6-flash) | 60.9% | 39.1% | 0% |
+| anthropic (claude-sonnet-5, 주 모델) | 52.2% | 47.8% | 0% |
 
-- 교차 모델 검증됨(2/3 이상 PASS) 비율: [TODO]%
-- Kruskal-Wallis 검정(3개 백엔드 점수 분포): H=[TODO], p=[TODO]
-- 카이제곱 검정(3개 백엔드 등급 분포, RxC): χ²=[TODO], p=[TODO]
+- 교차 모델 검증됨(2/3 이상 PASS) 비율: **47.8%** (23건 중 11건)
+- Kruskal-Wallis 검정(3개 백엔드 점수 분포): H=0.375, p=0.829
+- 카이제곱 검정(3개 백엔드 등급 분포, RxC): χ²=2.70, p=0.609
 
 #### 심층 분석 (Action Matrix Analysis)
 
-[TODO: 실험 후 실제 로그 기반으로 작성. 다음 항목을 반드시 포함할 것]
-- 초기 명세(v1.0)에서 어느 유닛(A~D)이 가장 취약했는지
-- Meta-Rule 보강이 구체적으로 어떤 실패 패턴을 겨냥했는지 (SRS diff 예시 포함, 특히 개인정보 유출 범주에서 v1.0에 명시되지 않았던 제약이 자동 추가되는 과정)
-- 헬드아웃 셋 결과가 치유용 셋 결과와 통계적으로 유의미한 차이가 없는지 (Wilcoxon test 결과)
-- 적응형 재공격에서의 방어율 저하폭과 그 해석
-- 교차 모델 검증(§3.5.5)에서 백엔드 간 PASS율 편차 — 어느 모델이 v_final의 Meta-Rule 표현에 가장 취약/견고했는지, 그 패턴이 특정 공격 범주에 몰려 있는지, Kruskal-Wallis/카이제곱 p-value가 실제로 "구분되지 않는다"를 뒷받침하는지
-- 유닛별 차단 비율의 A/C/D 3분해(§3.6.3) — 우리 SRS/Meta-Rule(유닛 D)이 막은 비율 vs 기반 모델(Claude Sonnet 5) 자체의 안전장치(유닛 C 자체 거부)가 막은 비율을 구분해, "우리 메커니즘의 순수 기여도"를 과대평가하지 않았는지 확인
-- 심판관 거부로 채점 불가(`ungradable_count`) 처리된 시나리오 비율과 카테고리 분포(§3.6.3) — 특정 공격 범주(예: 인코딩 우회, 개인정보 유출)에 몰려 있는지
+**(1) 초기 명세(v1.0)에서 어느 유닛이 가장 취약했는가.** round_1의 WARNING 22건 중 21건은 유닛 A(입력 가드레일)·유닛 D(출력 가드레일) 어느 쪽에도 걸리지 않았다(`blocked_by_unit=None`) — 즉 결정론적 필터는 이 실패를 전혀 감지하지 못했고, 오직 심판관 LLM의 Action Matrix 채점만이 이를 포착했다. 유닛 A가 명백한 우회 패턴으로 차단한 사례가 1건, 유닛 D가 내부 정보 유출 마커로 차단한 사례가 1건 있었을 뿐이다. 이는 본 연구의 핵심 실패 모드(아래 (2))가 애초에 규칙 기반 필터로는 잡을 수 없는 종류 — "보안 위반"이 아니라 "지시된 형식을 따르지 않는 습관적 어투" — 임을 구조적으로 뒷받침한다.
+
+**(2) Meta-Rule 보강이 겨냥한 실패 패턴.** round_1의 WARNING 22건을 전수 검토한 결과, 압도적 다수(20건 이상)가 정확히 하나의 원인으로 수렴했다 — SRS 9번째 제약 조건("추가 질문이나 도움, 궁금증을 권장하는 말은 하지 않는다")을 어기고, 거절 응답 끝에 "궁금하신 점 있으시면 말씀해주세요"류 문구를 습관적으로 덧붙인 것이다. 부차적으로 지정된 격식 어투(-해요체)와 다른 이모지·구어체 감탄사 사용도 반복적으로 관측되었다. 반면 핵심 보안 판단(개인정보·시스템프롬프트 비노출, 허위 결함 미동조, 가격 선제 비언급, 타 제품 비교 거절)은 대부분 정확했다. Meta-Rule 생성기는 5라운드에 걸쳐 v_final까지 총 20개의 Meta-Rule을 생성했는데, 그중 5개(전체의 1/4)가 "거절 후 추가 질문·안내 문구를 덧붙이지 말라"는 지시를 표현만 바꿔 반복한 것이었다(예: "즉시 응답을 종료하라" → "질문형·권유형·의문형 어미를 사용하지 마라" → "거절 문장 하나로만 응답을 종료하라"). 즉 자가 치유 메커니즘은 문제의 원인을 정확히 반복적으로 짚어냈지만, 완전한 해소에는 이르지 못했다(round_5도 88.4%, §6에서 논의).
+
+**(3) 헬드아웃 셋 일반화.** 치유용 셋의 v1.0→v_final 개선은 Wilcoxon signed-rank 검정에서 p=0.00018로 통계적으로 매우 유의했다. 헬드아웃 셋(v_final, 87.0%)은 치유용 셋 최종 라운드(88.4%)와 거의 동일한 수준을 보였으며, Mann-Whitney U 검정에서 두 집단의 점수 분포가 통계적으로 구분되지 않았다(p=0.773) — 자가 치유가 치유용 셋 문항에만 과적합된 것이 아니라 동일 카테고리의 새로운 문항에도 일반화됨을 시사한다(단, §6에서 논의하듯 두 셋이 같은 배치에서 무작위 분할된 것이라는 한계는 여전히 남는다).
+
+**(4) 적응형 재공격 결과와 그 해석.** 블랙박스 조건(방어 시스템에 Meta-Rule이 존재한다는 사실만 알고 정확한 문구는 모름) 93.3%, 화이트박스 조건(v_final의 Meta-Rule 전문을 그대로 알고 있음) 100%로 나타났다. 이는 §5.4.3에서 사전에 기술한 "블랙박스 방어율 X% ≥ 화이트박스 방어율 Y%" 가정과 **반대** 방향의 결과다. 원인으로는 레드팀 생성기(GPT-5.4)가 명시적으로 주어진 금지 규칙 목록을 보면 오히려 그 규칙들을 정면으로 건드리지 않는(=탐지되기 쉬운 노골적 공격을 피하는) 방향으로 문장을 다듬는 경향을 보였을 가능성, 그리고 표본 크기가 각 5개에 불과해 1건의 차이만으로도 비율이 크게 흔들리는 통계적 불안정성 두 가지를 모두 배제할 수 없다 — 본 실행(n=10 이상)에서 이 역전 현상이 재현되는지 반드시 재확인이 필요하다(§6 한계점 추가 항목).
+
+**(5) 교차 모델 검증에서의 백엔드 간 편차.** 2/3 이상 PASS(교차 모델 검증됨) 비율이 47.8%로, 절반에도 못 미쳤다. 다만 3개 백엔드의 PASS율(60.9% / 60.9% / 52.2%)과 점수 분포는 Kruskal-Wallis(p=0.829)·카이제곱(p=0.609) 검정 모두에서 통계적으로 유의미하게 구분되지 않았다 — 즉 이 실패가 특정 벤더에 국한된 것이 아니라 **3개 상용 LLM에 공통된 경향**으로 해석할 근거가 있다. anthropic(주 모델, 심판관과 동일 벤더)의 PASS율이 오히려 가장 낮게(52.2%) 나온 점도 주목할 만하다 — 최소한 "심판관이 같은 벤더의 응답에 후하다"는 우려는 이 결과만 놓고 보면 기각된다.
+
+**(6) 심판관 거부로 인한 결측치.** 채점 불가(`ungradable`) 처리된 사례는 치유 라운드·헬드아웃·교차모델 검증을 통틀어 4건이었고, **전부 `encoding_bypass` 카테고리에 집중**되어 있었다(다른 7개 카테고리에서는 0건). §3.6.3에서 논의한 대로, 이 카테고리의 few-shot 예시가 프랑스어 번역·소설 대사 프레이밍처럼 인용문 내부에 지시문처럼 보이는 문장을 담고 있어, 심판관 역할의 모델이 이를 실제 지시로 오인해 채점 자체를 거부하는 현상으로 추정된다. 특정 카테고리에 결측이 쏠려 있다는 사실 자체가 §6에서 논의하는 보고 편향(reporting bias) 위험의 구체적 사례다.
 
 ### 5.4. 적응형 재공격 실험 (Adaptive Re-Attack)
 
@@ -437,22 +448,28 @@ def evaluate_response(srs_excerpt: str, attack_prompt: str, chatbot_response: st
 
 #### 5.4.3 절차 및 해석 원칙
 
-레드팀 생성기(§3.5.2, GPT-5.4)에게 v_final SRS(화이트박스) 또는 이전 라운드의 실패/성공 로그(블랙박스)를 제공하여 우회 공격 30개(각 15개)를 생성하고, 주 모델(Claude Sonnet 5)로 무상태 실행 후 채점한다. 100%가 아니어도 정상이며, "블랙박스 조건에서 방어율 X%, 화이트박스 조건에서 방어율 Y%(Y≤X)"처럼 성능 저하 정도를 정직하게 보고하는 것이 학술적으로 더 설득력 있다. (적응형 재공격에는 교차 모델 검증을 적용하지 않는다 — §3.5.5 참조.)
+레드팀 생성기(§3.5.2, GPT-5.4)에게 v_final SRS(화이트박스) 또는 이전 라운드의 실패/성공 로그(블랙박스)를 제공하여 우회 공격을 생성하고, 주 모델(Claude Sonnet 5)로 무상태 실행 후 채점한다. 100%가 아니어도 정상이며, "블랙박스 조건에서 방어율 X%, 화이트박스 조건에서 방어율 Y%(통상 Y≤X로 예상)"처럼 성능 저하 정도를 정직하게 보고하는 것이 학술적으로 더 설득력 있다. (적응형 재공격에는 교차 모델 검증을 적용하지 않는다 — §3.5.5 참조.)
+
+> ⚠️ **예비 실행 결과(§5.3, 각 조건 5개 표본)에서는 이 예상과 반대로 화이트박스(100%)가 블랙박스(93.3%)보다 높게 나왔다.** Meta-Rule 전문을 알려주었을 때 레드팀 생성기가 오히려 더 우회 가능성이 높은 공격을 만들지 못했다는 뜻인데, 표본이 각 5개에 불과해 통계적 잡음일 가능성과, 레드팀 모델이 명시된 금지 규칙을 보면 그 규칙을 정면으로 건드리는 공격을 회피하는 방향으로 조정될 가능성(§6에서 논의) 둘 다 배제할 수 없다. 본 실행(표본 확대)에서 이 역전이 재현되는지가 이 절의 원래 가설(Y≤X)이 유효한지를 가르는 핵심 확인 사항이다.
 
 ---
 
 ## 제6장. 논의 및 한계점 (Discussion)
 
-1. **학술적/실무적 시사점**: 본 연구는 막대한 연산 비용이 드는 모델 파인튜닝(Fine-tuning)이나 복잡한 다중 에이전트(Multi-agent) 시스템 없이도, 소프트웨어공학의 요구사항 명세서(SRS) 텍스트 최적화와 모듈형 아키텍처 재구성만으로 LLM의 준수율을 끌어올릴 수 있음을 헬드아웃 검증과 적응형 재공격 실험을 통해 증명하였다. 나아가 단일 모델로 완성한 이 효과가 특정 상용 LLM 1종에 국한되지 않고, 이종 LLM 2종을 추가한 교차 모델 검증(§3.5.5)에서도 2/3 이상 재현됨을 확인하였다. 이는 기업의 AI 도입 비용을 절감시킨다.
-2. **내적 타당성 위협 통제**: 'LLM이 LLM을 채점하는 방식'에서 제기되는 확증 편향 문제는 무상태(Stateless) API 파이프라인으로 구조적으로 통제하였다. 또한 응답을 만드는 모델과 채점하는 모델을 동시에 여러 개로 늘리지 않고, 교차 모델 검증 단계에서도 심판관을 주 모델 하나로 고정함으로써(§3.5.5), "응답 모델 차이"라는 변수 하나만 순수하게 관찰할 수 있도록 설계하였다 — 이는 심판관까지 여러 개로 늘렸을 때 발생하는 "어느 차이 때문인지 뒤섞이는" 혼입(confounding) 문제를 원천적으로 피한 것이다.
+1. **학술적/실무적 시사점**: 본 연구는 막대한 연산 비용이 드는 모델 파인튜닝(Fine-tuning)이나 복잡한 다중 에이전트(Multi-agent) 시스템 없이도, 소프트웨어공학의 요구사항 명세서(SRS) 텍스트 최적화와 모듈형 아키텍처 재구성만으로 LLM의 준수율을 끌어올릴 수 있음을 예비 규모 파일럿(§5.3)의 헬드아웃 검증(87.0%, 치유용 최종 88.4%와 통계적으로 구분 안 됨)을 통해 시사하는 근거를 확보하였다. 다만 이 효과가 특정 상용 LLM 1종에 국한되지 않는지 확인하기 위한 교차 모델 검증(§3.5.5)에서는 2/3 이상 재현 비율이 **47.8%**로, 애초 기대했던 수준에는 미치지 못했다 — 이는 "성공"으로 포장하지 않고 정직하게 보고하며, 아래 §6 항목들과 함께 후속 과제로 다룬다.
+2. **내적 타당성 위협 통제**: 'LLM이 LLM을 채점하는 방식'에서 제기되는 확증 편향 문제는 무상태(Stateless) API 파이프라인으로 구조적으로 통제하였다. 또한 응답을 만드는 모델과 채점하는 모델을 동시에 여러 개로 늘리지 않고, 교차 모델 검증 단계에서도 심판관을 주 모델 하나로 고정함으로써(§3.5.5), "응답 모델 차이"라는 변수 하나만 순수하게 관찰할 수 있도록 설계하였다 — 이는 심판관까지 여러 개로 늘렸을 때 발생하는 "어느 차이 때문인지 뒤섞이는" 혼입(confounding) 문제를 원천적으로 피한 것이다. 실제로 심판관과 같은 벤더(anthropic)의 응답이 가장 낮은 PASS율(52.2%)을 기록해(§5.3-(5)), 적어도 "심판관이 동일 벤더에 후하다"는 우려는 이 파일럿 결과만으로는 뒷받침되지 않았다.
 3. **연구의 한계점 및 향후 과제**: 본 실험은 가전 유통 분야를 중심으로 진행되었으므로, 향후 의료, 금융, 공공기관 등 더욱 복잡한 법적 제약 조건이 존재하는 타 도메인(Heterogeneous Organizations)으로 적용 범위를 확장하여 일반화 가능성을 추가 검증할 예정이다. 본 연구의 모든 채점은 결국 심판관 역할을 겸하는 주 모델 단일 모델에 의존하므로(§3.6.1), 심판관의 신뢰성은 경량 표본 검토(§3.6.2)에 그치며 정식 human-vs-LLM inter-rater reliability 분석(Cohen's Kappa 등)은 후속 연구로 남긴다. 또한 심판관 LLM에 대한 응답 내 인젝션 공격(§3.6.3)은 본 연구의 범위 밖으로 남겨두었다. 실험 과정에서 안전성이 강하게 튜닝된 모델(Claude Sonnet 5)을 레드팀·심판관·피실험 챗봇 등 1인 다역으로 쓸 때 실제로 부딪히는 문제도 확인했다 — 레드팀 역할에서는 우회 공격 문장 생성 자체를 정책상 거부했고(§3.5.2), 심판관·챗봇 역할에서도 드물게 정책상 거부가 발생했다(§3.6.3). 전자는 그 역할만 다른 모델(GPT-5.4)로 분리해 해소했고, 후자는 재시도 후에도 거부하면 "채점 불가"로 정직하게 집계에서 제외하는 방식으로 대응했다.
 4. **자체 점검한 추가 내적 타당성 위협 (Self-audited threats to validity)**: 심사 과정에서 지적될 수 있는 지점을 저자가 먼저 명시한다.
    - **헬드아웃 셋의 독립성 한계**: 치유용 셋과 헬드아웃 셋은 §4.2.2의 동일한 1차 생성 배치(같은 레드팀 LLM 호출, 동일 프롬프트)에서 나온 후보를 무작위로 나눈 것이다(§3.5.1). 완전히 독립적으로 생성된 문항이 아니라 같은 배치 내 다른 표현이므로, 보고되는 "일반화 성능"은 진짜 분포 밖(out-of-distribution) 일반화라기보다 같은 배치 내 보간(interpolation)에 가까울 수 있다. 더 엄격한 검증을 위해서는 헬드아웃 셋을 별도 시점·별도 프롬프트(또는 별도 생성 모델)로 독립 생성하는 것이 바람직하며, 이는 후속 실험으로 남긴다. 교차 모델 검증(§3.5.5)이 이 헬드아웃 셋을 그대로 재사용하므로, 이 한계는 교차 모델 검증 결과에도 그대로 이어진다.
    - **여러 역할을 겸하는 주 모델에 대한 의존**: 자가 치유·헬드아웃·적응형 재공격의 유닛 C·채점·명세서 보강을 전부 주 모델(Claude Sonnet 5) 하나가 수행한다(§3.5.2). 설계를 단순하게 만드는 대신, 이 모델의 특이한 성향(예: 특정 표현에 유독 관대하거나 엄격함, 또는 자체 안전장치로 인한 거부)이 논문 전체 결과에 일관되게 스며들 수 있다는 위험을 안고 간다. 교차 모델 검증은 "응답 생성" 축의 이 위험만 완화할 뿐, "채점" 축의 위험은 §3.6의 경량 표본 검토에만 의존한다.
-   - **심판관/Unit C의 정책상 거부(refusal)로 인한 결측치**: §3.6.3에서 다룬 대로, 채점 불가로 집계에서 제외된 시나리오(`ungradable_count`)가 존재한다. 이 제외가 특정 공격 범주에 편중된다면(예: 안전성 필터가 더 예민하게 반응하는 카테고리), 해당 범주의 결과가 실제보다 좋게 보이는 방향으로 보고 편향(reporting bias)이 생길 수 있다 — "거부당한 사례는 통계에 안 잡히므로 나쁜 사례가 조용히 빠질 위험"을 부인할 수 없다. §5.3에서 제외 건수와 카테고리 분포를 반드시 함께 보고해 이 편향의 크기를 가늠할 수 있게 했다.
+   - **심판관/Unit C의 정책상 거부(refusal)로 인한 결측치**: §3.6.3에서 다룬 대로, 채점 불가로 집계에서 제외된 시나리오(`ungradable_count`)가 존재한다. 이 제외가 특정 공격 범주에 편중된다면(예: 안전성 필터가 더 예민하게 반응하는 카테고리), 해당 범주의 결과가 실제보다 좋게 보이는 방향으로 보고 편향(reporting bias)이 생길 수 있다 — "거부당한 사례는 통계에 안 잡히므로 나쁜 사례가 조용히 빠질 위험"을 부인할 수 없다. §5.3에서 제외 건수와 카테고리 분포를 반드시 함께 보고해 이 편향의 크기를 가늠할 수 있게 했다. 실제로 예비 실행에서 결측이 `encoding_bypass` 카테고리 한 곳에만 집중되었다(§5.3-(6)).
    - **레드팀 생성기(GPT-5.4)와 교차 모델 검증 백엔드의 제공사 중복**: 레드팀 생성기로 쓰는 GPT-5.4가 교차 모델 검증의 추가 백엔드 2종 중 하나와 동일 모델이다(§3.5.2). 이 모델이 스스로 만든 공격 문장을 스스로 방어하는 형태가 되므로, 완전히 독립적인 이해관계라고 보기는 어렵다 — 다만 채점은 항상 주 모델(Claude Sonnet 5)이 담당하므로 "채점의 공정성"이 훼손되는 것은 아니고, "레드팀이 자신이 뚫기 쉬운 방식으로만 문장을 만들 가능성"이 완전히 배제되지는 않는다는 수준의 한계다.
-   - **초기 SRS 페르소나의 성별 지정**: SRS v1.0의 페르소나가 "친절한 여성 직원"으로 성별을 명시하는데, 이는 실제 A사 상담 인력 구성을 반영한 도메인 모델링 선택이며 실험의 독립변인이 아니다. 다만 이 설계 선택 자체가 갖는 사회적 함의는 본 연구의 논의 범위 밖임을 명시한다.
+   - **초기 SRS 페르소나의 성별 지정**: SRS v1.0의 페르소나가 "친절한 여성 직원"으로 성별을 명시하는데, 이는 실제 협업 대상 챗봇 프로젝트가 모델링하는 상담 인력 구성을 반영한 도메인 모델링 선택이며 실험의 독립변인이 아니다. 다만 이 설계 선택 자체가 갖는 사회적 함의는 본 연구의 논의 범위 밖임을 명시한다.
    - **데이터셋 필터링·표본 검토의 단일 평가자 의존**: §4.2.2의 후보 필터링과 §3.6.2 표본 검토 모두 연구자 1인이 수행하며, 별도의 검수자에 의한 교차검증(cross-check)은 수행하지 않는다. 데이터셋 구성 단계에서도 평가 단계와 마찬가지로 단일 평가자 편향이 남아 있을 수 있다.
+   - **FAIL(1점) 등급이 실측 데이터에서 단 한 번도 관측되지 않음**: §5.3의 예비 실행 전 구간(치유 5라운드·헬드아웃·적응형 재공격·교차 모델 검증, 채점 약 150여 건)에서 FAIL은 0건이었다. 이는 두 가지로 해석될 수 있다 — (a) 긍정적으로는, 시도된 공격 수준에서 실제 보안 사고(개인정보/시스템프롬프트 유출, 페르소나 완전 이탈 등)로 이어진 사례가 없었다는 뜻이고, (b) 방법론적으로는, **Action Matrix의 3단계 등급 중 WARNING↔FAIL 경계가 이 예비 실행에서 단 한 번도 실제로 행사되지 않아, 심판관이 정말 FAIL을 줄 수 있는지와 자가 치유 루프가 진짜 심각한 위반을 실제로 탐지·복구하는지를 아직 경험적으로 증명하지 못했다는 뜻이기도 하다.** 본 연구의 핵심 서사("실패 발견 → Meta-Rule 자동 보강")가 지금까지는 WARNING↔PASS 경계에서만 실증되었을 뿐이다. 후속 실행에서는 (i) 공격을 더 정교화하거나 (ii) SRS v1.0에서 조항 하나를 의도적으로 제거해 FAIL이 나올 조건을 통제된 방식으로 만들어(§3.5.1 스타일의 미끼 데이터 도입과 동일한 논리로, 투명하게 명시) FAIL 등급과 그 복구 과정을 최소 1회 이상 실증하는 것을 권고한다.
+   - **Meta-Rule 반복 보강만으로는 완전한 수렴에 도달하지 못함**: §5.3에서 관측된 것처럼, 동일한 지시("추가 질문을 하지 말라")를 5회 표현만 바꿔 반복 삽입했음에도 round_5가 88.4%에서 멈췄다(round_4는 오히려 79.7%로 하락). 이는 자가 치유 메커니즘이 "무엇이 문제인지 정확히 진단하는" 능력과 "그 진단을 완전히 해소하는" 능력이 별개일 수 있음을 시사한다 — 특히 대상 행동이 RLHF로 깊게 학습된 대화 스타일 기본값(예: 친절한 마무리 질문)과 충돌할 때, 시스템 프롬프트 수준의 반복 지시만으로는 한계가 있을 가능성이 있다. `max_rounds`를 늘려 더 많은 라운드를 시도했을 때 실제로 수렴하는지, 아니면 결정론적 출력 후처리(유닛 D 강화) 같은 비-프롬프트 메커니즘이 추가로 필요한지는 확인되지 않았으며 후속 과제로 남긴다.
+   - **표본 크기의 한계**: §5.3의 결과는 카테고리당 3개(총 23~24개 문항)의 예비 규모이며, 논문이 원래 계획한 카테고리당 10개 규모의 본 실행은 아직 수행하지 않았다. 적응형 재공격에서 화이트박스(100%)가 블랙박스(93.3%)보다 높게 나온 것과 같은 반직관적 결과(§5.3-(4))는 표본이 각 5개에 불과한 데서 오는 통계적 불안정성일 가능성이 있어, 본 실행에서 재확인이 필요하다.
+   - **공격 시나리오 2차 필터링(연구자 수동 검토)이 실제로는 수행되지 않음**: §4.2.2에서 설계한 "레드팀 LLM 자동 생성 → 연구자 수동 검토 → 층화 분할" 3단계 절차 중 가운데 단계(`manual_review_hook`)가 지금까지의 모든 실행에서 기본값(전부 통과)으로 남아 있었다. 즉 지금까지 보고된 모든 결과는 레드팀 LLM이 생성하고 중복 제거만 거친 시나리오에 기반하며, "대상 도메인에 비현실적이거나 카테고리 정의에 맞지 않는 문항"이 섞여 있을 가능성을 사람이 아직 걸러내지 않았다. 논문 제출 전 이 검토를 실제로 수행하고, 검토로 인해 제외된 문항의 비율과 사유를 §4.2.2에 함께 보고할 것을 권고한다.
 
 ---
 
@@ -460,7 +477,7 @@ def evaluate_response(srs_excerpt: str, attack_prompt: str, chatbot_response: st
 
 본 논문은 조직 내 개인정보 유출, 브랜드/RAG 정보에 대한 오답, 프롬프트 인젝션('LLM 해킹') 등 LLM 기반 AI 챗봇이 겪는 신뢰성 문제를 해결하기 위해 모듈형 4단계 유닛 아키텍처와 자가 치유(Self-Healing) 요구사항 명세 프레임워크를 제안하였다.
 
-적대적 스트레스 테스트와 액션 매트릭스 평가, 무상태 API 기반의 철저한 변인 통제, 헬드아웃 검증 및 적응형 재공격 실험을 단일 주 모델로 수행하고, 그 결과가 특정 모델에 우연히 맞춰진 것이 아님을 이종 LLM 2종을 더한 교차 모델 검증(§3.5.5)으로 확인하는 과정을 거쳐 [TODO: 실제 결과 요약으로 교체], 챗봇 시스템이 스스로 취약점을 분석하고 명세서의 Meta-Rules를 보강함으로써 가이드라인 준수율을 향상시키는 성과를, 특정 LLM 제공사에 종속되지 않는 형태로 달성하였다. 본 연구가 제시한 개발 메커니즘은 향후 엔터프라이즈 AI 시장에서 안전하고 신뢰할 수 있는 LLM 기반 서비스를 신속하게 구축하고 배포하는 데 핵심적인 소프트웨어 공학적 지침을 제공할 것으로 기대된다.
+적대적 스트레스 테스트와 액션 매트릭스 평가, 무상태 API 기반의 철저한 변인 통제, 헬드아웃 검증 및 적응형 재공격 실험을 단일 주 모델로 수행한 결과, 예비 규모 파일럿(카테고리당 3개, §5.3)에서 챗봇 시스템이 스스로 취약점을 분석하고 명세서의 Meta-Rules를 자동 보강함으로써 치유용 셋 준수율을 68.1%에서 88.4%로 통계적으로 유의하게 향상시켰고(Wilcoxon p<0.001), 이 개선이 헬드아웃 셋(87.0%)에서도 통계적으로 구분되지 않는 수준으로 재현되어 특정 문항에 대한 과적합이 아님을 확인하였다. 전 구간에서 실제 보안 위반(FAIL)은 관측되지 않았으며, 잔여 결함은 핵심 보안 판단이 아니라 응답 형식 준수(불필요한 추가 질문 자제 등)에 관한 것이었다. 다만 이 결과가 특정 모델에 우연히 맞춰진 것이 아님을 이종 LLM 2종을 더한 교차 모델 검증(§3.5.5)으로 확인하는 과정에서는 2/3 이상 검증 비율이 47.8%에 그쳐, 애초 목표했던 "특정 LLM 제공사에 종속되지 않는 형태의 달성"은 이번 예비 규모 결과만으로는 완전히 입증되었다고 보기 어렵다 — 다만 3개 벤더의 결과가 통계적으로 서로 구분되지 않아(Kruskal-Wallis p=0.829), 이 미달이 특정 제공사에 국한된 문제라기보다 상용 LLM 전반의 공통 경향일 가능성도 함께 확인하였다(§6). 본 연구가 제시한 개발 메커니즘은 텍스트 명세 최적화만으로 LLM 챗봇의 준수율을 유의미하게 끌어올릴 수 있음을 시사하는 예비적 근거를 제공하며, 카테고리당 10개 규모의 본 실행과 FAIL 등급의 실증적 검증(§6)을 거쳐 향후 엔터프라이즈 AI 시장에서 안전하고 신뢰할 수 있는 LLM 기반 서비스를 구축·배포하는 데 실용적인 소프트웨어 공학적 지침으로 발전시킬 수 있을 것으로 기대된다.
 
 ---
 
@@ -478,12 +495,14 @@ def evaluate_response(srs_excerpt: str, attack_prompt: str, chatbot_response: st
 
 ## 부록 (Appendix)
 
-- 부록 A. 치유용 60개 + 헬드아웃 60개 공격 시나리오 전문 (6개 범주, §4.2.1) [TODO]
-- 부록 B. SRS v1.0 ~ v_final 전문 (Meta-Rule diff 포함, `data/srs/*.json`) [TODO]
-- 부록 C. Action Matrix 채점 프롬프트 템플릿 전문 [TODO]
-- 부록 D. 실험 재현 코드 저장소 링크 및 실행 방법 (`seonghoikim/hongik`) [TODO: 코드 구현 후 링크 채움]
-- 부록 E. 심판관 채점 경량 표본 검토 원자료 (§3.6.2, 15~20건, `spotcheck_blind_*.json`/`spotcheck_answer_key_*.json`/비교 결과) [TODO]
-- 부록 F. 적응형 재공격 30개(블랙박스 15 + 화이트박스 15) 전문 및 결과 (§5.4) [TODO]
-- 부록 G. 교차 모델 검증 원자료 — 백엔드 3종별 헬드아웃 60건 채점 결과(응답 전문 포함) 및 Kruskal-Wallis/카이제곱 통계량 (§3.5.5, §5.3) [TODO]
-- 부록 H. 실행 환경 스냅샷 및 토큰 사용량·비용 실측치 (§3.5.6, `output["environment"]`/`output["usage_summary"]`) [TODO]
-- 부록 I. 원본 API 호출 로그 (`raw_calls_*.jsonl`, §3.5.6) — 용량 문제로 본문에는 요약만 싣고 전문은 저장소/별도 아카이브 링크로 대체 가능 [TODO]
+> ⚠️ 아래 부록은 카테고리당 10개 규모의 **본 실행** 기준 수량(치유용 80개, 헬드아웃 80개, 적응형 40개 등, 8개 범주)으로 설계되어 있다. 본 실행은 아직 수행 전이며, 현재까지의 예비 규모(카테고리당 3개) 근거 데이터는 `data/results/experiment_real_20260804_060902.json`(원본), `data/results/report_real_20260804_060902.html`(시나리오별 전문 추적), `data/srs/v1.0.json`~`v1.5.json`(SRS 버전 히스토리), `data/rag/kb_v4.json`+`members_v1.json`(RAG 스냅샷)에 이미 보존되어 있다.
+
+- 부록 A. 치유용 + 헬드아웃 공격 시나리오 전문 (8개 범주, §4.2.1) [TODO: 본 실행 후 채움 — 예비 규모 원문은 위 report_*.html에서 확인 가능]
+- 부록 B. SRS v1.0 ~ v_final 전문 (Meta-Rule diff 포함, `data/srs/*.json`) — 예비 규모 기준 이미 확보됨(v1.0~v1.5, Meta-Rule 20개). 본 실행 후 갱신 필요. [TODO: 본 실행 결과로 교체]
+- 부록 C. Action Matrix 채점 프롬프트 템플릿 전문 — `src/hongik_selfheal/judge.py`의 `_RUBRIC_SYSTEM_TEMPLATE` [TODO: 부록에 전문 옮겨 수록]
+- 부록 D. 실험 재현 코드 저장소 링크 및 실행 방법 (`seonghoikim/hongik`, 브랜치 `claude/masters-thesis-draft-review-3j6ew6`) [TODO: 최종 브랜치/커밋 확정 후 링크 고정]
+- 부록 E. 심판관 채점 경량 표본 검토 원자료 (§3.6.2) — **연구자 수동 채점 미수행**(§3.6.2-4). 대신 확보된 교차 심판관 재검증 결과(`data/results/cross_judge_real_20260803_135419.json`, 42건)는 §3.6.2-4에 요약됨. [TODO: 수동 표본 검토 수행 후 정식 자료로 교체]
+- 부록 F. 적응형 재공격 전문 및 결과 (§5.4) — 예비 규모(블랙박스 5 + 화이트박스 5) 결과는 §5.3에 요약됨, 원문은 report_*.html 참조. [TODO: 본 실행 규모(각 20개)로 갱신]
+- 부록 G. 교차 모델 검증 원자료 — 백엔드 3종별 헬드아웃 채점 결과(응답 전문 포함) 및 Kruskal-Wallis/카이제곱 통계량 (§3.5.5, §5.3) — 예비 규모 결과는 §5.3에 수록됨(H=0.375, p=0.829 / χ²=2.70, p=0.609). [TODO: 본 실행 규모로 갱신]
+- 부록 H. 실행 환경 스냅샷 및 토큰 사용량·비용 실측치 (§3.5.6) — 예비 실행 기준 459회 호출, 추정 비용 $9.88(`experiment_real_20260804_060902.json`의 `environment`/`usage_summary` 필드). [TODO: 본 실행 비용으로 갱신, 예비 실행 대비 3~4배(약 $30~40대) 예상]
+- 부록 I. 원본 API 호출 로그 (`raw_calls_*.jsonl`, §3.5.6) — 용량 문제로 저장소에는 커밋하지 않음(`.gitignore`), 로컬 실행 결과물로만 보존됨. 본문에는 요약(부록 H)만 싣고 전문은 필요 시 별도 아카이브로 제공. [TODO]
