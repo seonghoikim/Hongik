@@ -33,6 +33,25 @@ class SRS:
             f"{META_RULE_FOOTER}\n{rule_block}"
         )
 
+    def render_for_judge(self) -> str:
+        """심판관용 경량 렌더러 (thesis.md §5.3.10 정정, 종합 점검 F1 반영,
+        2026-08-12). unit_c에는 계속 헤더+푸터 이중 삽입("강조 재확인")을
+        유지한다 — 이건 자가 치유가 실제로 테스트하는 방어 메커니즘의 일부라
+        건드리지 않는다. 반면 심판관은 판단 근거로 규칙을 한 번만 보면
+        충분한데도 같은 텍스트를 두 번 받고 있었다. 실측 결과 이 이중 삽입이
+        라운드가 진행될수록(Meta-Rule 누적) 심판관 호출의 입력 토큰을 라운드
+        1→15 사이 최대 4.9배까지 불필요하게 키우는 주된 비용 요인이었다
+        (치유 루프 입력 토큰 비용의 63.9%). 채점 결과 자체가 달라지지 않도록
+        내용은 그대로 두고 푸터 중복만 제거한다."""
+        constraint_block = "\n".join(f"- {c}" for c in self.constraints)
+        body = f"{self.persona}\n\n[핵심 제약 조건]\n{constraint_block}"
+
+        if not self.meta_rules:
+            return body
+
+        rule_block = "\n".join(f"- {r}" for r in self.meta_rules)
+        return f"{META_RULE_HEADER}\n{rule_block}\n\n{body}"
+
     def next_version(self, new_rules: list[str]) -> "SRS":
         """새 Meta-Rule을 반영한 다음 버전을 만든다 (중복 규칙은 추가하지 않음)."""
         merged = list(self.meta_rules)

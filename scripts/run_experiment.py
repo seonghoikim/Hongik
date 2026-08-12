@@ -36,7 +36,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from hongik_selfheal.attack_generator import generate_full_pool, stratified_split  # noqa: E402
+from hongik_selfheal.attack_generator import generate_full_pool, load_pool, save_pool, stratified_split  # noqa: E402
 from hongik_selfheal.call_logger import CallLogger  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
 from hongik_selfheal.experiment import run_full_experiment, save_experiment_output  # noqa: E402
@@ -118,7 +118,34 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-rounds", type=int, default=10)
     parser.add_argument("--adaptive-n", type=int, default=15, help="블랙박스/화이트박스 각각 개수")
+    parser.add_argument(
+        "--n-repeat",
+        type=int,
+        default=1,
+        help="시나리오당 반복 시행 횟수 (thesis.md §3.5.1 N=반복시행, 종합 점검 2026-08-12 발견 — "
+        "1~11차 파일럿까지는 전부 n_repeat=1이라 라운드 진동이 SRS 효과인지 단일 시행 노이즈인지 "
+        "구분할 수 없었음). 1보다 크면 자가 치유 루프가 '전원 PASS'에 도달해도 조기 종료하지 "
+        "않고 --max-rounds까지 전부 진행한다 — N배 다수결 집계에서는 100% 도달을 목표로 삼지 "
+        "않고 라운드별 준수율의 추세(평균±표준편차)를 관측하는 것이 목적이기 때문이다. "
+        "비용이 거의 n_repeat배로 늘어나므로 규모를 함께 낮추는 것을 권장.",
+    )
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument(
+        "--attack-pool-file",
+        type=Path,
+        default=None,
+        help="이 경로에서 공격 시나리오 풀을 로드해 레드팀 재생성을 건너뜀 (--save-attack-pool로 "
+        "저장해둔 파일). baseline vs 변형(예: 5w1h) SRS를 완전히 동일한 공격 문항으로 비교하는 "
+        "진짜 대응표본 설계에 사용 — 종합 점검 2026-08-12, thesis.md §5.3.10에서 지적된 "
+        "'서로 다른 공격 문항으로 비교했다'는 한계에 대한 대응.",
+    )
+    parser.add_argument(
+        "--save-attack-pool",
+        type=Path,
+        default=None,
+        help="새로 생성한 공격 시나리오 풀을 이 경로에 저장 (--attack-pool-file 미지정 시에만 "
+        "의미 있음). 이후 실행에서 --attack-pool-file로 재사용해 대응표본 비교에 쓸 수 있다.",
+    )
     parser.add_argument(
         "--no-raw-log",
         dest="raw_log",
@@ -159,7 +186,14 @@ def main() -> None:
         f"redteam={args.redteam_provider} cross_model_backends={list(cross_model_clients)}"
     )
 
-    pool = generate_full_pool(n_per_category=args.n_per_category * 2, llm_client=redteam_client)
+    if args.attack_pool_file is not None:
+        pool = load_pool(args.attack_pool_file)
+        print(f"[run_experiment] 공격 시나리오 풀을 파일에서 로드(재생성 건너뜀): {args.attack_pool_file} ({len(pool)}개)")
+    else:
+        pool = generate_full_pool(n_per_category=args.n_per_category * 2, llm_client=redteam_client)
+        if args.save_attack_pool is not None:
+            save_pool(pool, args.save_attack_pool)
+            print(f"[run_experiment] 공격 시나리오 풀 저장(재사용용): {args.save_attack_pool}")
     healing_set, held_out_set = stratified_split(
         pool, healing_per_cat=args.n_per_category, heldout_per_cat=args.n_per_category
     )
@@ -171,6 +205,13 @@ def main() -> None:
     srs_dir = Path(__file__).resolve().parent.parent / "data" / "srs" / run_id
     initial_srs = initial_srs_v1() if args.srs_variant == "baseline" else initial_srs_v2_with_5w1h()
     print(f"[run_experiment] srs_variant={args.srs_variant} initial_srs_version={initial_srs.version}")
+    if args.n_repeat > 1:
+        print(
+            f"[run_experiment] n_repeat={args.n_repeat} — 자가 치유 루프는 조기 종료 없이 "
+            f"--max-rounds({args.max_rounds})까지 전부 진행하며, 라운드별 준수율 추세를 "
+            "관측하는 것이 목적입니다(100% 도달을 목표로 삼지 않음)."
+        )
+    checkpoint_path = results_dir / f"checkpoint_{run_id}.json"
     output = run_full_experiment(
         initial_srs,
         healing_set,
@@ -182,6 +223,10 @@ def main() -> None:
         max_rounds=args.max_rounds,
         adaptive_n_per_mode=args.adaptive_n,
         srs_dir=srs_dir,
+        unit_temperature=config.llm_temperature,
+        judge_temperature=config.judge_temperature,
+        n_repeat=args.n_repeat,
+        checkpoint_path=checkpoint_path,
     )
 
     # --- 통계 검정 (thesis.md §3.5.3) ---
@@ -254,21 +299,42 @@ def main() -> None:
     out_path = args.output or (results_dir / f"experiment_{run_id}.json")
     save_experiment_output(output, out_path)
 
+    def _avg_score_std(results: list[dict]) -> float | None:
+        vals = [r["score_std"] for r in results if r.get("score_std") is not None]
+        return round(sum(vals) / len(vals), 3) if vals else None
+
     # --- 논문 §5.3 표 형식 요약 출력 ---
-    print("\n평가 회차 | 적용 명세서 | PASS | WARNING | FAIL | 총점 | 준수율")
+    n_repeat_used = output.get("n_repeat", 1)
+    header = "\n평가 회차 | 적용 명세서 | PASS | WARNING | FAIL | 총점 | 준수율"
+    if n_repeat_used > 1:
+        header += f" | 시나리오당 평균 표준편차(N={n_repeat_used})"
+    print(header)
     for round_data in output["healing_rounds"]:
-        print(
+        line = (
             f"{round_data['label']:>10} | {round_data['srs_version']:>6} | "
             f"{round_data['pass_count']:>4} | {round_data['warning_count']:>7} | "
             f"{round_data['fail_count']:>4} | {round_data['total_score']:>4} | "
             f"{round_data['compliance_rate']}%"
         )
+        if n_repeat_used > 1:
+            line += f" | {_avg_score_std(round_data['results'])}"
+        print(line)
     for key in ("held_out", "adaptive_blackbox", "adaptive_whitebox"):
         d = output[key]
-        print(
+        line = (
             f"{d['label']:>10} | {d['srs_version']:>6} | {d['pass_count']:>4} | "
             f"{d['warning_count']:>7} | {d['fail_count']:>4} | {d['total_score']:>4} | "
             f"{d['compliance_rate']}%"
+        )
+        if n_repeat_used > 1:
+            line += f" | {_avg_score_std(d['results'])}"
+        print(line)
+    if n_repeat_used > 1:
+        print(
+            "\n[N=반복시행 안내] 위 표의 PASS/WARNING/FAIL·총점·준수율은 시나리오별 "
+            f"{n_repeat_used}회 반복 다수결 집계 기준입니다(개별 시행의 원점수 분포는 "
+            "결과 JSON의 all_scores/grade_counts 필드 참조). 100% 도달을 목표로 삼지 "
+            "않고 라운드를 거치며 이 준수율이 어떻게 변하는지 추세로 해석하십시오."
         )
 
     cm = output["cross_model"]

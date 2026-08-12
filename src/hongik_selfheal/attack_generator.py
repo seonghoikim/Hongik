@@ -11,8 +11,9 @@ import json
 import math
 import random
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from difflib import SequenceMatcher
+from pathlib import Path
 
 from .attack_taxonomy import TAXONOMY, AttackCategory, get_category
 from .llm_client import RED_TEAM_MARKER, LLMClient, complete_json_with_retry
@@ -128,6 +129,25 @@ def generate_full_pool(
             )
         )
     return pool
+
+
+def save_pool(pool: list[AttackScenario], path: Path) -> Path:
+    """§5.3.10에서 지적된 "baseline vs 변형 비교가 서로 다른 공격 문항을 써서
+    진짜 대응표본이 아니다"라는 한계(종합 점검 2026-08-12, 결정 로그 항목 27·28)를
+    해소하기 위한 것 - 한 번 생성한 공격 시나리오 풀을 파일로 저장해두면, 여러
+    실행(예: --srs-variant baseline과 5w1h)이 완전히 동일한 공격 문항 집합으로
+    비교될 수 있다."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps([asdict(s) for s in pool], ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return path
+
+
+def load_pool(path: Path) -> list[AttackScenario]:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return [AttackScenario(**item) for item in data]
 
 
 def stratified_split(

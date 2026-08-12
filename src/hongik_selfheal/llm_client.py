@@ -212,13 +212,17 @@ class AnthropicClient(LLMClient):
         role = _infer_role(system)
         started = time.monotonic()
         try:
-            text, response = self._call(system, user, temperature)
+            text, response = self._call(system, user, temperature, role=role, started=started)
         except Exception as e:
-            self._log(
-                role, system, user, "", model_version=None,
-                input_tokens=None, output_tokens=None,
-                latency_ms=(time.monotonic() - started) * 1000, error=str(e),
-            )
+            if not isinstance(e, LLMRefusalError):
+                # LLMRefusalError는 이미 _call() 안에서 실제 usage까지 포함해
+                # 로깅했다(아래 F2 정정). 여기서는 응답 자체를 못 받은(네트워크
+                # 오류 등) 진짜 "토큰 정보가 없는" 예외만 None으로 남긴다.
+                self._log(
+                    role, system, user, "", model_version=None,
+                    input_tokens=None, output_tokens=None,
+                    latency_ms=(time.monotonic() - started) * 1000, error=str(e),
+                )
             raise
 
         self._log(
@@ -229,7 +233,10 @@ class AnthropicClient(LLMClient):
         )
         return text
 
-    def _call(self, system: str, user: str, temperature: float, *, max_tokens: int = 8192, _retry: bool = True):
+    def _call(
+        self, system: str, user: str, temperature: float, *, role: str, started: float,
+        max_tokens: int = 8192, _retry: bool = True,
+    ):
         kwargs = dict(
             model=self._model,
             # 레드팀 생성기가 여러 개의 공격 문장을 JSON 배열로 한 번에 반환할 때
@@ -256,6 +263,16 @@ class AnthropicClient(LLMClient):
             # 텍스트가 일부(심지어 JSON 중간까지) 나온 뒤 거부로 끊기는 경우도 있어
             # 텍스트 유무와 무관하게 stop_reason을 우선 확인한다. 공격 문장 인용문을
             # 실제 지시로 오인해 생성을 도중에 멈추는 사례가 있다 (thesis.md §3.6.3).
+            # F2 정정(종합 점검 2026-08-12): 거부해도 실제로는 토큰을 소모/청구했으므로
+            # 여기서 실제 usage로 로깅한다 - 이전에는 예외 처리 경로에서 항상 None으로
+            # 기록돼 비용 추정치가 오류/재시도 호출분을 구조적으로 누락하고 있었다.
+            self._log(
+                role, system, user, "", model_version=response.model,
+                input_tokens=getattr(response.usage, "input_tokens", None),
+                output_tokens=getattr(response.usage, "output_tokens", None),
+                latency_ms=(time.monotonic() - started) * 1000,
+                error=f"refusal (partial_text_len={len(text)})",
+            )
             raise LLMRefusalError(
                 "Anthropic이 안전성 정책으로 응답을 거부/중단했습니다 "
                 f"(stop_reason='refusal', partial_text_len={len(text)}, usage={response.usage!r})"
@@ -266,11 +283,31 @@ class AnthropicClient(LLMClient):
             # 현상: extended thinking이 max_tokens 예산을 전부 소진해 실제 답변
             # 텍스트가 하나도 안 나오는 경우가 있다. 예산을 두 배로 늘려 한 번만
             # 재시도한다 (thesis.md §3.6.3 계열 현상으로 기록).
-            return self._call(system, user, temperature, max_tokens=max_tokens * 2, _retry=False)
+            # F2 정정: 잘린 이번 시도도 실제로는 토큰을 전부 소모했으므로, 재시도로
+            # 넘어가기 전에 이 시도분을 별도 레코드로 로깅해 비용 집계에서 빠지지
+            # 않게 한다(이전에는 재시도 성공 시 이 첫 시도의 토큰이 통째로 사라졌다).
+            self._log(
+                role, system, user, "", model_version=response.model,
+                input_tokens=getattr(response.usage, "input_tokens", None),
+                output_tokens=getattr(response.usage, "output_tokens", None),
+                latency_ms=(time.monotonic() - started) * 1000,
+                error=f"max_tokens 소진(텍스트 없음), {max_tokens*2}로 재시도",
+            )
+            return self._call(
+                system, user, temperature, role=role, started=started,
+                max_tokens=max_tokens * 2, _retry=False,
+            )
 
         if not text:
             # 재시도 후에도 텍스트가 없으면 크래시시키지 않고 LLMRefusalError로
             # 변환해 §3.6.3과 동일하게 "채점/생성 불가"로 정직하게 집계에서 제외한다.
+            self._log(
+                role, system, user, "", model_version=response.model,
+                input_tokens=getattr(response.usage, "input_tokens", None),
+                output_tokens=getattr(response.usage, "output_tokens", None),
+                latency_ms=(time.monotonic() - started) * 1000,
+                error=f"응답에 텍스트 없음 (stop_reason={response.stop_reason!r})",
+            )
             raise LLMRefusalError(
                 "Anthropic 응답에 텍스트가 없어 채점/생성이 불가합니다 "
                 f"(stop_reason={response.stop_reason!r}, "

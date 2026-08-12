@@ -7,3 +7,7 @@ __pycache__/
 # 원문 API 호출 로그: 근거 데이터는 experiment_*.json에 이미 요약되어 있고
 # 이 파일은 실행 규모에 따라 커질 수 있어 저장소에는 올리지 않는다 (thesis.md §6).
 data/results/raw_calls_*.jsonl
+
+# 라운드 단위 체크포인트(종합 점검 2026-08-12, F6): 크래시 방어용 임시 파일이며
+# 실행이 정상 종료되면 experiment_*.json에 동일 내용이 이미 포함되어 있다.
+data/results/checkpoint_*.json
