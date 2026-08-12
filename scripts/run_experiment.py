@@ -286,6 +286,27 @@ def main() -> None:
     if total_ungradable:
         print(f"\n⚠ 심판관 거부로 채점 불가(통계에서 제외)한 시나리오 총 {total_ungradable}건 (§3.6.3 참조)")
 
+    # --- §4.1.2 5W1H 축 태깅 집계 (진단용, 점수에는 영향 없음) ---
+    axis_counts: dict[str | None, dict[str, int]] = {}
+    for round_data in output["healing_rounds"]:
+        for r in round_data["results"]:
+            bucket = axis_counts.setdefault(r.get("exploited_axis"), {"PASS": 0, "WARNING": 0, "FAIL": 0})
+            grade = r.get("grade")
+            if grade in bucket:
+                bucket[grade] += 1
+    for key in ("held_out", "adaptive_blackbox", "adaptive_whitebox"):
+        for r in output[key]["results"]:
+            bucket = axis_counts.setdefault(r.get("exploited_axis"), {"PASS": 0, "WARNING": 0, "FAIL": 0})
+            grade = r.get("grade")
+            if grade in bucket:
+                bucket[grade] += 1
+    if axis_counts:
+        print("\n[5W1H 축 집계 - §4.1.2] 축 | 계 | PASS | WARNING | FAIL")
+        for axis in sorted(axis_counts, key=lambda a: (a is None, a)):
+            g = axis_counts[axis]
+            total = g["PASS"] + g["WARNING"] + g["FAIL"]
+            print(f"  {axis or '(태그없음)':>10} | {total:>3} | {g['PASS']:>4} | {g['WARNING']:>7} | {g['FAIL']:>4}")
+
     if "usage_summary" in output:
         us = output["usage_summary"]
         print(

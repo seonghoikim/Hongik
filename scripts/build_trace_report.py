@@ -239,6 +239,15 @@ pre { margin:0; white-space:pre-wrap; word-break:break-word; font-family:var(--f
 .ungradable-box { border:1px solid var(--warn); background:var(--warn-soft); border-radius:8px;
   padding:10px 14px; font-size:13px; margin-bottom:12px; }
 .ungradable-box ul { margin:6px 0 0; padding-left:18px; }
+.axis-table { border-collapse:collapse; width:100%; font-size:13px; background:var(--paper-raised);
+  border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.axis-table th, .axis-table td { padding:8px 12px; text-align:right; border-bottom:1px solid var(--line-soft); }
+.axis-table th:first-child, .axis-table td:first-child { text-align:left; }
+.axis-table th { font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft);
+  background:var(--mute-soft); font-weight:600; }
+.axis-table tbody tr:last-child td { border-bottom:none; }
+.axis-table td.fail-n { color:var(--fail); font-weight:700; }
+.axis-table td.warn-n { color:var(--warn); font-weight:700; }
 """
 
 
@@ -296,9 +305,88 @@ def members_summary_section(rag_dir: Path, members_version: str | None) -> str:
 </section>"""
 
 
+_AXIS_LABELS = {
+    "who": "Who (권한 사칭)",
+    "what": "What (완곡 질의)",
+    "when": "When (긴급성)",
+    "why": "Why (명분 위장)",
+    "how": "How (전달 우회)",
+    None: "(태그 없음/해당없음)",
+}
+
+
+def axis_breakdown_section(data: dict) -> str:
+    """thesis.md §4.1.2 — exploited_axis 진단 태그의 집계 뷰. 개별 카드에서
+    하나씩 확인하지 않아도, 이 실행 전체에서 공격이 어느 5W1H 축에 몰렸고
+    그 축에서 등급이 어떻게 나왔는지 한눈에 보여준다."""
+    counts: dict[str | None, dict[str, int]] = {}
+
+    def _tally(axis, grade):
+        bucket = counts.setdefault(axis, {"PASS": 0, "WARNING": 0, "FAIL": 0})
+        if grade in bucket:
+            bucket[grade] += 1
+
+    for round_data in data.get("healing_rounds", []):
+        for r in round_data.get("results", []):
+            _tally(r.get("exploited_axis"), r.get("grade"))
+    for key in ("held_out", "adaptive_blackbox", "adaptive_whitebox"):
+        for r in data.get(key, {}).get("results", []):
+            _tally(r.get("exploited_axis"), r.get("grade"))
+
+    cross_counts: dict[str | None, dict[str, int]] = {}
+    for r in data.get("cross_model", {}).get("results", []):
+        axes = r.get("backend_exploited_axes", {}) or {}
+        grades = r.get("backend_grades", {}) or {}
+        for provider, axis in axes.items():
+            bucket = cross_counts.setdefault(axis, {"PASS": 0, "WARNING": 0, "FAIL": 0})
+            grade = grades.get(provider)
+            if grade in bucket:
+                bucket[grade] += 1
+
+    if not counts and not cross_counts:
+        return ""
+
+    def _rows(tally: dict) -> str:
+        rows = ""
+        for axis in sorted(tally, key=lambda a: (a is None, a)):
+            g = tally[axis]
+            total = g["PASS"] + g["WARNING"] + g["FAIL"]
+            label = _AXIS_LABELS.get(axis, esc(axis))
+            rows += (
+                f"<tr><td>{label}</td><td>{total}</td>"
+                f"<td>{g['PASS']}</td>"
+                f"<td class=\"warn-n\">{g['WARNING']}</td>"
+                f"<td class=\"fail-n\">{g['FAIL']}</td></tr>"
+            )
+        return rows
+
+    cross_block = ""
+    if cross_counts:
+        cross_block = f"""
+  <p class="section-note" style="margin-top:18px;">교차 모델 검증(3개 백엔드, 축 태그가 백엔드별로 따로 남음)</p>
+  <table class="axis-table">
+    <thead><tr><th>축</th><th>계</th><th>PASS</th><th>WARNING</th><th>FAIL</th></tr></thead>
+    <tbody>{_rows(cross_counts)}</tbody>
+  </table>"""
+
+    return f"""
+<section>
+  <h2>공격이 파고든 5W1H 축 집계 <span class="tag">§4.1.2 진단 태그, exploited_axis</span></h2>
+  <p class="section-note">
+    자가 치유 라운드 전체 + 헬드아웃 + 적응형 재공격을 합산한 집계입니다. 점수 자체에는 영향이 없는
+    진단용 태그이며, 어느 축에 실패(WARNING/FAIL)가 몰려 있는지를 보여줍니다.
+  </p>
+  <table class="axis-table">
+    <thead><tr><th>축</th><th>계</th><th>PASS</th><th>WARNING</th><th>FAIL</th></tr></thead>
+    <tbody>{_rows(counts)}</tbody>
+  </table>{cross_block}
+</section>"""
+
+
 def build_report(data: dict, srs_dir: Path, rag_dir: Path) -> str:
     cache: dict[str, str] = {}
     sections = [
+        axis_breakdown_section(data),
         kb_full_section(rag_dir, data.get("kb_version")),
         members_summary_section(rag_dir, data.get("members_version")),
     ]
