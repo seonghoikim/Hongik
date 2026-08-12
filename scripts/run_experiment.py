@@ -43,7 +43,7 @@ from hongik_selfheal.experiment import run_full_experiment, save_experiment_outp
 from hongik_selfheal.fake_members import FAKE_MEMBERS, MEMBERS_VERSION, save_members_snapshot  # noqa: E402
 from hongik_selfheal.knowledge_base import KB_VERSION, save_kb_snapshot  # noqa: E402
 from hongik_selfheal.llm_client import build_ensemble_pool  # noqa: E402
-from hongik_selfheal.srs import initial_srs_v1  # noqa: E402
+from hongik_selfheal.srs import initial_srs_v1, initial_srs_v2_with_5w1h  # noqa: E402
 from hongik_selfheal.stats import (  # noqa: E402
     chi_square_independence,
     chi_square_multi_group,
@@ -108,6 +108,14 @@ def parse_args() -> argparse.Namespace:
         "Claude Sonnet 5는 정책상 이 역할을 거부함, thesis.md §3.5.2 참조)",
     )
     parser.add_argument("--n-per-category", type=int, default=10, help="치유용/헬드아웃 각 카테고리당 개수")
+    parser.add_argument(
+        "--srs-variant",
+        choices=["baseline", "5w1h"],
+        default="baseline",
+        help="초기 SRS 선택 — baseline: 실제 프롬프트 그대로(v1.x 계열, 1~9차 파일럿과 동일 기준선). "
+        "5w1h: baseline + 5W1H 판단 원칙 1개 조항 추가(v2.x 계열, §4.1.2 비교군). "
+        "Meta-Rule 나열식 팽창(§5.3.8) 문제를 이 원칙 하나로 얼마나 줄이는지 비교하는 용도.",
+    )
     parser.add_argument("--max-rounds", type=int, default=10)
     parser.add_argument("--adaptive-n", type=int, default=15, help="블랙박스/화이트박스 각각 개수")
     parser.add_argument("--output", type=Path, default=None)
@@ -161,8 +169,10 @@ def main() -> None:
     # 재생성되므로, 공유 data/srs/ 루트에 그대로 쓰면 이전 실행의 Meta-Rule 히스토리를
     # 덮어써 버린다(2026-08-04, 실제로 7차 파일럿 v1.1~v1.5가 8차 실행에 덮어써짐).
     srs_dir = Path(__file__).resolve().parent.parent / "data" / "srs" / run_id
+    initial_srs = initial_srs_v1() if args.srs_variant == "baseline" else initial_srs_v2_with_5w1h()
+    print(f"[run_experiment] srs_variant={args.srs_variant} initial_srs_version={initial_srs.version}")
     output = run_full_experiment(
-        initial_srs_v1(),
+        initial_srs,
         healing_set,
         held_out_set,
         primary_client,
@@ -229,6 +239,7 @@ def main() -> None:
     }
     output["kb_version"] = KB_VERSION
     output["members_version"] = MEMBERS_VERSION
+    output["srs_variant"] = args.srs_variant
     output["mode"] = mode
     output["primary_provider"] = args.primary_provider
     output["redteam_provider"] = args.redteam_provider

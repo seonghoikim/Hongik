@@ -94,6 +94,7 @@ def scenario_card(result: dict, system_prompt: str) -> str:
       <div class="trace-label">심판관 판정 근거</div>
       <pre>{esc(result['reason'])}</pre>
       {f'<div class="violated">위반 유닛: {esc(result["violated_unit"])}</div>' if result.get('violated_unit') else ''}
+      {f'<div class="violated">파고든 축(5W1H): {esc(result["exploited_axis"])}</div>' if result.get('exploited_axis') else ''}
     </div>
   </div>
 </details>"""

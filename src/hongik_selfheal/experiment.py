@@ -36,6 +36,7 @@ class ScenarioResult:
     grade: str
     reason: str
     violated_unit: str | None
+    exploited_axis: str | None = None
 
 
 @dataclass
@@ -102,6 +103,7 @@ def evaluate_set(
                 grade=judge_result.grade,
                 reason=judge_result.reason,
                 violated_unit=judge_result.violated_unit,
+                exploited_axis=judge_result.exploited_axis,
             )
         )
     return _summarize(label, srs.version, results, ungradable_details)
@@ -164,6 +166,7 @@ def self_healing_loop(
                 chatbot_response=r.chatbot_response,
                 judge_reason=r.reason,
                 violated_unit=r.violated_unit,
+                exploited_axis=r.exploited_axis,
             )
             for r in failing
         ]
@@ -208,6 +211,7 @@ class CrossModelScenarioResult:
     backend_reasons: dict[str, str]
     pass_count: int
     cross_model_validated: bool
+    backend_exploited_axes: dict[str, str | None] = field(default_factory=dict)
 
 
 @dataclass
@@ -248,6 +252,7 @@ def cross_model_verify(
         backend_scores: dict[str, int] = {}
         backend_grades: dict[str, str] = {}
         backend_reasons: dict[str, str] = {}
+        backend_exploited_axes: dict[str, str | None] = {}
         refusal_error: str | None = None
         refusal_backend: str | None = None
         for provider, pipeline_result in pipeline_results.items():
@@ -271,6 +276,7 @@ def cross_model_verify(
             backend_scores[provider] = judge_result.score
             backend_grades[provider] = judge_result.grade
             backend_reasons[provider] = judge_result.reason
+            backend_exploited_axes[provider] = judge_result.exploited_axis
 
         if refusal_error is not None:
             ungradable_details.append({
@@ -296,6 +302,7 @@ def cross_model_verify(
                 backend_reasons=backend_reasons,
                 pass_count=pass_count,
                 cross_model_validated=pass_count >= 2,
+                backend_exploited_axes=backend_exploited_axes,
             )
         )
 
