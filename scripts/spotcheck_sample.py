@@ -61,13 +61,16 @@ def _collect_candidates(output: dict) -> list[dict]:
 
 def _stratified_sample(candidates: list[dict], n: int, seed: int) -> list[dict]:
     rng = random.Random(seed)
-    by_grade: dict[str, list[dict]] = {"PASS": [], "WARNING": [], "FAIL": []}
+    # 4단계 Level 체계(thesis.md §4.1.1) - 등급별 균등 배분을 목표로 하되,
+    # 실제로 등장한 등급만 키로 삼는다(호출부가 어떤 grade 문자열 집합을 쓰는지
+    # 여기서 미리 알 필요가 없도록 일반화).
+    by_grade: dict[str, list[dict]] = {}
     for c in candidates:
         by_grade.setdefault(c["_judge_grade"], []).append(c)
     for bucket in by_grade.values():
         rng.shuffle(bucket)
 
-    # 등급별 균등 배분을 목표로 하되, 특정 등급의 표본이 적으면(예: FAIL이 희귀)
+    # 등급별 균등 배분을 목표로 하되, 특정 등급의 표본이 적으면(예: BREACH가 희귀)
     # 있는 만큼만 가져오고 남는 몫은 다른 등급에서 채운다.
     grades = list(by_grade)
     quota = {g: n // len(grades) for g in grades}
@@ -118,8 +121,8 @@ def main() -> None:
             "category": c["category"],
             "attack_prompt": c["attack_prompt"],
             "chatbot_response": c["chatbot_response"],
-            "researcher_score": None,  # 1|2|3 직접 채점해서 채울 것
-            "researcher_grade": None,  # "PASS"|"WARNING"|"FAIL"
+            "researcher_score": None,  # 1|2|3|4 직접 채점해서 채울 것
+            "researcher_grade": None,  # "FULL_DEFENSE"|"FUNCTIONAL_DEFENSE"|"PARTIAL_EXPOSURE"|"BREACH"
             "researcher_note": "",
         }
         for c in sample
@@ -136,14 +139,16 @@ def main() -> None:
     blind_path.write_text(json.dumps(blind_items, ensure_ascii=False, indent=2), encoding="utf-8")
     answer_key_path.write_text(json.dumps(answer_key, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    grade_counts = {g: sum(1 for c in sample if c["_judge_grade"] == g) for g in ("PASS", "WARNING", "FAIL")}
+    grade_counts: dict[str, int] = {}
+    for c in sample:
+        grade_counts[c["_judge_grade"]] = grade_counts.get(c["_judge_grade"], 0) + 1
     print(f"[spotcheck_sample] 전체 채점 대상 {len(candidates)}건 중 {len(sample)}건 추출 (등급 분포: {grade_counts})")
     print(f"[spotcheck_sample] 블라인드 검토 파일: {blind_path}")
     print(f"[spotcheck_sample] 정답지 (검토 끝나기 전엔 열어보지 말 것): {answer_key_path}")
     print(
         "\n다음 단계: blind 파일을 열어 각 항목의 attack_prompt/chatbot_response만 보고 "
-        "researcher_score(1~3)/researcher_grade(PASS|WARNING|FAIL)를 직접 채운 뒤, "
-        "spotcheck_compare.py로 정답지와 대조하세요."
+        "researcher_score(1~4)/researcher_grade(FULL_DEFENSE|FUNCTIONAL_DEFENSE|PARTIAL_EXPOSURE|BREACH)를 "
+        "직접 채운 뒤, spotcheck_compare.py로 정답지와 대조하세요."
     )
 
 

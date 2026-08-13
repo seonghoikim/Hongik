@@ -60,16 +60,22 @@ def independent_mannwhitney(group_a_scores: list[int], group_b_scores: list[int]
 
 
 def chi_square_independence(
-    counts_a: tuple[int, int, int], counts_b: tuple[int, int, int]
+    counts_a: tuple[int, ...], counts_b: tuple[int, ...], labels: tuple[str, ...] | None = None
 ) -> TestResult:
-    """PASS/WARNING/FAIL 빈도표(2x3 분할표)에 대한 독립성 검정.
+    """등급 빈도표(2xN 분할표)에 대한 독립성 검정.
 
-    counts_a, counts_b는 각각 (pass_count, warning_count, fail_count).
+    counts_a, counts_b는 같은 길이의 등급별 빈도 튜플(호출부가 순서를 정함 -
+    예: experiment.py의 GRADE_ORDER). labels를 생략하면 "등급 1", "등급 2"...로
+    표시한다.
     """
-    labels = ("PASS", "WARNING", "FAIL")
+    n = len(counts_a)
+    if len(counts_b) != n:
+        raise ValueError("counts_a와 counts_b는 길이가 같아야 합니다.")
+    labels = labels or tuple(f"등급 {i + 1}" for i in range(n))
+
     # 두 집단 모두에서 0인 등급(열)은 기대빈도가 0이 되어 카이제곱 계산이
-    # 불가능하므로 제외한다 (예: WARNING이 한 건도 없는 경우).
-    kept_cols = [i for i in range(3) if counts_a[i] > 0 or counts_b[i] > 0]
+    # 불가능하므로 제외한다 (예: 특정 등급이 한 건도 없는 경우).
+    kept_cols = [i for i in range(n) if counts_a[i] > 0 or counts_b[i] > 0]
     if len(kept_cols) < 2:
         return TestResult(
             test_name="chi_square_independence",
@@ -80,7 +86,7 @@ def chi_square_independence(
 
     table = [[counts_a[i] for i in kept_cols], [counts_b[i] for i in kept_cols]]
     chi2, p, dof, _expected = scipy_stats.chi2_contingency(table)
-    dropped = [labels[i] for i in range(3) if i not in kept_cols]
+    dropped = [labels[i] for i in range(n) if i not in kept_cols]
     dropped_note = f" (0건이라 제외된 등급: {', '.join(dropped)})" if dropped else ""
     return TestResult(
         test_name="chi_square_independence",
@@ -121,16 +127,20 @@ def kruskal_wallis(*groups: list[int]) -> TestResult:
     )
 
 
-def chi_square_multi_group(*counts: tuple[int, int, int]) -> TestResult:
-    """3개 이상 그룹의 PASS/WARNING/FAIL 빈도표(RxC 분할표)에 대한 독립성 검정.
+def chi_square_multi_group(*counts: tuple[int, ...], labels: tuple[str, ...] | None = None) -> TestResult:
+    """3개 이상 그룹의 등급 빈도표(RxC 분할표)에 대한 독립성 검정.
     chi_square_independence의 k-그룹(k>=2) 일반화이며, counts는 각 그룹의
-    (pass_count, warning_count, fail_count) 튜플이다.
+    등급별 빈도 튜플(호출부가 순서를 정함 - 예: experiment.py의 GRADE_ORDER)이다.
     """
     if len(counts) < 2:
         raise ValueError("chi_square_multi_group은 최소 2개 그룹이 필요합니다.")
 
-    labels = ("PASS", "WARNING", "FAIL")
-    kept_cols = [i for i in range(3) if any(c[i] > 0 for c in counts)]
+    n = len(counts[0])
+    if any(len(c) != n for c in counts):
+        raise ValueError("counts의 모든 튜플은 길이가 같아야 합니다.")
+    labels = labels or tuple(f"등급 {i + 1}" for i in range(n))
+
+    kept_cols = [i for i in range(n) if any(c[i] > 0 for c in counts)]
     if len(kept_cols) < 2:
         return TestResult(
             test_name="chi_square_multi_group",
@@ -141,7 +151,7 @@ def chi_square_multi_group(*counts: tuple[int, int, int]) -> TestResult:
 
     table = [[c[i] for i in kept_cols] for c in counts]
     chi2, p, dof, _expected = scipy_stats.chi2_contingency(table)
-    dropped = [labels[i] for i in range(3) if i not in kept_cols]
+    dropped = [labels[i] for i in range(n) if i not in kept_cols]
     dropped_note = f" (0건이라 제외된 등급: {', '.join(dropped)})" if dropped else ""
     return TestResult(
         test_name="chi_square_multi_group",

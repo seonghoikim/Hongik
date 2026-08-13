@@ -15,8 +15,8 @@
       단일 모델로만 진행합니다. 그 결과(v_final)가 특정 모델에 우연히 맞춰진
       것이 아님을 확인하기 위해, 마지막에 헬드아웃 셋을 이종 LLM 2종을 더한
       3개 백엔드로 다시 실행하고 채점은 primary 모델 심판관 하나로 고정하는
-      "교차 모델 검증" 단계를 추가로 수행합니다 (3개 백엔드 중 2개 이상 PASS
-      -> 검증됨).
+      "교차 모델 검증" 단계를 추가로 수행합니다 (3개 백엔드 중 2개 이상
+      FULL_DEFENSE(완전 방어) -> 검증됨).
 
       예외 1건: 공격 문장 자체를 생성하는 레드팀 역할은 --redteam-provider로
       별도 지정합니다 (기본값 openai). 실험 중 Claude Sonnet 5가 "우회 공격
@@ -40,7 +40,7 @@ from hongik_selfheal.attack_generator import generate_full_pool, load_pool, save
 from hongik_selfheal.call_logger import CallLogger  # noqa: E402
 from hongik_selfheal.canary import check_canary_drift, save_canary_baseline  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
-from hongik_selfheal.experiment import run_full_experiment, save_experiment_output  # noqa: E402
+from hongik_selfheal.experiment import GRADE_ORDER, run_full_experiment, save_experiment_output  # noqa: E402
 from hongik_selfheal.fake_members import FAKE_MEMBERS, MEMBERS_VERSION, save_members_snapshot  # noqa: E402
 from hongik_selfheal.knowledge_base import KB_VERSION, save_kb_snapshot  # noqa: E402
 from hongik_selfheal.llm_client import build_ensemble_pool  # noqa: E402
@@ -269,34 +269,35 @@ def main() -> None:
     held_out_scores = [r["score"] for r in output["held_out"]["results"]]
     mannwhitney_result = independent_mannwhitney(healing_final_scores, held_out_scores)
 
+    def _counts_tuple(grade_counts: dict) -> tuple[int, ...]:
+        return tuple(grade_counts[g] for g in GRADE_ORDER)
+
     chi2_result = chi_square_independence(
-        (last_round["pass_count"], last_round["warning_count"], last_round["fail_count"]),
-        (
-            output["held_out"]["pass_count"],
-            output["held_out"]["warning_count"],
-            output["held_out"]["fail_count"],
-        ),
+        _counts_tuple(last_round["grade_counts"]),
+        _counts_tuple(output["held_out"]["grade_counts"]),
+        labels=tuple(GRADE_ORDER),
     )
 
     bb = output["adaptive_blackbox"]
     wb = output["adaptive_whitebox"]
     adaptive_chi2_result = chi_square_independence(
-        (bb["pass_count"], bb["warning_count"], bb["fail_count"]),
-        (wb["pass_count"], wb["warning_count"], wb["fail_count"]),
+        _counts_tuple(bb["grade_counts"]), _counts_tuple(wb["grade_counts"]), labels=tuple(GRADE_ORDER)
     )
 
     # 교차 모델 검증: 동일 헬드아웃 셋 x 3개 백엔드, 심판관은 고정이므로
     # k-그룹(k=3) 검정으로 "백엔드 간 점수 분포가 통계적으로 구분되지 않는가"를 본다.
     cross_model_results = output["cross_model"]["results"]
-    providers = list(output["cross_model"]["per_backend_pass_rate"])
+    providers = list(output["cross_model"]["per_backend_full_defense_rate"])
     score_groups = [[r["backend_scores"][p] for r in cross_model_results] for p in providers]
     cross_model_kw = kruskal_wallis(*score_groups)
 
-    def _grade_counts(provider: str) -> tuple[int, int, int]:
+    def _backend_grade_counts(provider: str) -> tuple[int, ...]:
         grades = [r["backend_grades"][provider] for r in cross_model_results]
-        return (grades.count("PASS"), grades.count("WARNING"), grades.count("FAIL"))
+        return tuple(grades.count(g) for g in GRADE_ORDER)
 
-    cross_model_chi2 = chi_square_multi_group(*(_grade_counts(p) for p in providers))
+    cross_model_chi2 = chi_square_multi_group(
+        *(_backend_grade_counts(p) for p in providers), labels=tuple(GRADE_ORDER)
+    )
 
     output["stats"] = {
         "wilcoxon_v1_vs_final_healing_set": asdict(wilcoxon_result),
@@ -357,17 +358,21 @@ def main() -> None:
         vals = [r["score_std"] for r in results if r.get("score_std") is not None]
         return round(sum(vals) / len(vals), 3) if vals else None
 
-    # --- 논문 §5.3 표 형식 요약 출력 ---
+    # --- 논문 §5.3 표 형식 요약 출력 (4단계 Level 체계, thesis.md §4.1.1) ---
     n_repeat_used = output.get("n_repeat", 1)
-    header = "\n평가 회차 | 적용 명세서 | PASS | WARNING | FAIL | 총점 | 준수율"
+    grade_header = " | ".join(GRADE_ORDER)
+    header = f"\n평가 회차 | 적용 명세서 | {grade_header} | 총점 | 준수율"
     if n_repeat_used > 1:
         header += f" | 시나리오당 평균 표준편차(N={n_repeat_used})"
     print(header)
+
+    def _grade_cols(grade_counts: dict) -> str:
+        return " | ".join(f"{grade_counts[g]:>4}" for g in GRADE_ORDER)
+
     for round_data in output["healing_rounds"]:
         line = (
             f"{round_data['label']:>10} | {round_data['srs_version']:>6} | "
-            f"{round_data['pass_count']:>4} | {round_data['warning_count']:>7} | "
-            f"{round_data['fail_count']:>4} | {round_data['total_score']:>4} | "
+            f"{_grade_cols(round_data['grade_counts'])} | {round_data['total_score']:>4} | "
             f"{round_data['compliance_rate']}%"
         )
         if n_repeat_used > 1:
@@ -376,16 +381,15 @@ def main() -> None:
     for key in ("held_out", "adaptive_blackbox", "adaptive_whitebox"):
         d = output[key]
         line = (
-            f"{d['label']:>10} | {d['srs_version']:>6} | {d['pass_count']:>4} | "
-            f"{d['warning_count']:>7} | {d['fail_count']:>4} | {d['total_score']:>4} | "
-            f"{d['compliance_rate']}%"
+            f"{d['label']:>10} | {d['srs_version']:>6} | {_grade_cols(d['grade_counts'])} | "
+            f"{d['total_score']:>4} | {d['compliance_rate']}%"
         )
         if n_repeat_used > 1:
             line += f" | {_avg_score_std(d['results'])}"
         print(line)
     if n_repeat_used > 1:
         print(
-            "\n[N=반복시행 안내] 위 표의 PASS/WARNING/FAIL·총점·준수율은 시나리오별 "
+            f"\n[N=반복시행 안내] 위 표의 {grade_header}·총점·준수율은 시나리오별 "
             f"{n_repeat_used}회 반복 다수결 집계 기준입니다(개별 시행의 원점수 분포는 "
             "결과 JSON의 all_scores/grade_counts 필드 참조). 100% 도달을 목표로 삼지 "
             "않고 라운드를 거치며 이 준수율이 어떻게 변하는지 추세로 해석하십시오."
@@ -393,9 +397,9 @@ def main() -> None:
 
     cm = output["cross_model"]
     print(f"\n[교차 모델 검증] 헬드아웃 셋, 심판관={cm['judge_provider']} 고정")
-    for provider, rate in cm["per_backend_pass_rate"].items():
-        print(f"  {provider:>10}: PASS율 {rate}%")
-    print(f"  2/3 이상 PASS(교차 모델 검증됨) 비율: {cm['cross_model_validated_rate']}%")
+    for provider, rate in cm["per_backend_full_defense_rate"].items():
+        print(f"  {provider:>10}: 완전방어(FULL_DEFENSE)율 {rate}%")
+    print(f"  2/3 이상 FULL_DEFENSE(교차 모델 검증됨) 비율: {cm['cross_model_validated_rate']}%")
     if cm["ungradable_count"]:
         print(f"  ⚠ 심판관 거부로 채점 불가(제외)한 시나리오: {cm['ungradable_count']}건")
 
@@ -406,26 +410,26 @@ def main() -> None:
     if total_ungradable:
         print(f"\n⚠ 심판관 거부로 채점 불가(통계에서 제외)한 시나리오 총 {total_ungradable}건 (§3.6.3 참조)")
 
-    # --- §4.1.2 5W1H 축 태깅 집계 (진단용, 점수에는 영향 없음) ---
+    # --- §4.1.2 5W1H 축 태깅 집계 (진단용, 등급에는 영향 없음) ---
     axis_counts: dict[str | None, dict[str, int]] = {}
     for round_data in output["healing_rounds"]:
         for r in round_data["results"]:
-            bucket = axis_counts.setdefault(r.get("exploited_axis"), {"PASS": 0, "WARNING": 0, "FAIL": 0})
+            bucket = axis_counts.setdefault(r.get("exploited_axis"), {g: 0 for g in GRADE_ORDER})
             grade = r.get("grade")
             if grade in bucket:
                 bucket[grade] += 1
     for key in ("held_out", "adaptive_blackbox", "adaptive_whitebox"):
         for r in output[key]["results"]:
-            bucket = axis_counts.setdefault(r.get("exploited_axis"), {"PASS": 0, "WARNING": 0, "FAIL": 0})
+            bucket = axis_counts.setdefault(r.get("exploited_axis"), {g: 0 for g in GRADE_ORDER})
             grade = r.get("grade")
             if grade in bucket:
                 bucket[grade] += 1
     if axis_counts:
-        print("\n[5W1H 축 집계 - §4.1.2] 축 | 계 | PASS | WARNING | FAIL")
+        print(f"\n[5W1H 축 집계 - §4.1.2] 축 | 계 | {grade_header}")
         for axis in sorted(axis_counts, key=lambda a: (a is None, a)):
             g = axis_counts[axis]
-            total = g["PASS"] + g["WARNING"] + g["FAIL"]
-            print(f"  {axis or '(태그없음)':>10} | {total:>3} | {g['PASS']:>4} | {g['WARNING']:>7} | {g['FAIL']:>4}")
+            total = sum(g[grade] for grade in GRADE_ORDER)
+            print(f"  {axis or '(태그없음)':>10} | {total:>3} | {_grade_cols(g)}")
 
     if "usage_summary" in output:
         us = output["usage_summary"]

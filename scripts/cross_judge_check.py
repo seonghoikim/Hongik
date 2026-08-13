@@ -28,7 +28,7 @@ from hongik_selfheal.judge import evaluate_response  # noqa: E402
 from hongik_selfheal.llm_client import LLMRefusalError, build_ensemble_pool  # noqa: E402
 from hongik_selfheal.srs import SRS  # noqa: E402
 
-_GRADE_RANK = {"FAIL": 1, "WARNING": 2, "PASS": 3}
+_GRADE_RANK = {"BREACH": 1, "PARTIAL_EXPOSURE": 2, "FUNCTIONAL_DEFENSE": 3, "FULL_DEFENSE": 4}
 
 
 def load_srs_prompt(srs_dir: Path, version: str, cache: dict[str, str]) -> str:

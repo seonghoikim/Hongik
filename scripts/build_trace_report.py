@@ -24,7 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hongik_selfheal.srs import SRS  # noqa: E402
 
-_GRADE_LABEL = {"PASS": "PASS", "WARNING": "WARNING", "FAIL": "FAIL"}
+# 4단계 보안 심각도 Level 체계(thesis.md §4.1.1, 2026-08-13 코드 구현).
+_GRADE_ORDER = ["FULL_DEFENSE", "FUNCTIONAL_DEFENSE", "PARTIAL_EXPOSURE", "BREACH"]
 
 
 def esc(text: str) -> str:
@@ -52,7 +53,12 @@ def load_srs_prompt(srs_dir: Path, version: str, cache: dict[str, str]) -> str:
 
 
 def grade_pill(grade: str) -> str:
-    cls = {"PASS": "pass", "WARNING": "warn", "FAIL": "fail"}.get(grade, "mute")
+    cls = {
+        "FULL_DEFENSE": "pass",
+        "FUNCTIONAL_DEFENSE": "functional",
+        "PARTIAL_EXPOSURE": "warn",
+        "BREACH": "fail",
+    }.get(grade, "mute")
     return f'<span class="pill {cls}">{esc(grade)}</span>'
 
 
@@ -66,7 +72,7 @@ def scenario_card(result: dict, system_prompt: str) -> str:
   <summary>
     <span class="scenario-id">{esc(result['scenario_id'])}</span>
     <span class="category-tag">{esc(result['category'])}</span>
-    {grade_pill(result['grade'])} <span class="score">{result['score']}/3</span>
+    {grade_pill(result['grade'])} <span class="score">{result['score']}/4</span>
     {blocked_note}
   </summary>
   <div class="trace-body">
@@ -108,7 +114,7 @@ def cross_model_card(result: dict, system_prompt: str) -> str:
         reason = result["backend_reasons"][provider]
         backend_rows += f"""
     <div class="trace-block">
-      <div class="trace-label">[{esc(provider)}] 응답 &middot; {grade_pill(grade)} <span class="score">{score}/3</span></div>
+      <div class="trace-label">[{esc(provider)}] 응답 &middot; {grade_pill(grade)} <span class="score">{score}/4</span></div>
       <pre>{esc(response)}</pre>
       <div class="reason-inline">{esc(reason)}</div>
     </div>"""
@@ -123,7 +129,7 @@ def cross_model_card(result: dict, system_prompt: str) -> str:
   <summary>
     <span class="scenario-id">{esc(result['scenario_id'])}</span>
     <span class="category-tag">{esc(result['category'])}</span>
-    {validated_pill} <span class="score">{result['pass_count']}/3 PASS</span>
+    {validated_pill} <span class="score">{result['full_defense_count']}/3 FULL_DEFENSE</span>
   </summary>
   <div class="trace-body">
     <div class="trace-block">
@@ -164,8 +170,8 @@ def stage_section(title: str, tag: str, summary: dict, srs_dir: Path, cache: dic
 <section>
   <h2>{esc(title)} <span class="tag">{esc(tag)}</span></h2>
   <p class="section-note">
-    SRS {esc(summary['srs_version'])} &middot; PASS {summary['pass_count']} / WARNING {summary['warning_count']} /
-    FAIL {summary['fail_count']} &middot; 준수율 {summary['compliance_rate']}%
+    SRS {esc(summary['srs_version'])} &middot; {" / ".join(f"{g} {summary['grade_counts'][g]}" for g in _GRADE_ORDER)}
+    &middot; 준수율 {summary['compliance_rate']}%
   </p>
   {ungradable_note}
   <div class="trace-list">{cards}</div>
@@ -179,12 +185,12 @@ def cross_model_section(cm: dict, srs_dir: Path, cache: dict) -> str:
         for r in cm["results"]
     )
     backend_summary = " &middot; ".join(
-        f"{esc(p)} PASS율 {rate}%" for p, rate in cm["per_backend_pass_rate"].items()
+        f"{esc(p)} FULL_DEFENSE율 {rate}%" for p, rate in cm["per_backend_full_defense_rate"].items()
     )
     return f"""
 <section>
   <h2>교차 모델 검증 <span class="tag">헬드아웃 재실행, 심판관 {esc(cm['judge_provider'])} 고정</span></h2>
-  <p class="section-note">{backend_summary} &middot; 2/3 이상 PASS 비율 {cm['cross_model_validated_rate']}%</p>
+  <p class="section-note">{backend_summary} &middot; 2/3 이상 FULL_DEFENSE 비율 {cm['cross_model_validated_rate']}%</p>
   <div class="trace-list">{cards}</div>
 </section>"""
 
@@ -216,6 +222,7 @@ section { margin-bottom: 40px; }
   font-weight:600; padding:2px 8px; border-radius:100px; }
 .pill.pass { background:var(--pass-soft); color:var(--pass); }
 .pill.warn { background:var(--warn-soft); color:var(--warn); }
+.pill.functional { background:var(--accent-soft); color:var(--accent-ink); }
 .pill.fail { background:var(--fail-soft); color:var(--fail); }
 .pill.mute { background:var(--mute-soft); color:var(--mute); }
 .trace-list { display:flex; flex-direction:column; gap:8px; }
@@ -322,7 +329,7 @@ def axis_breakdown_section(data: dict) -> str:
     counts: dict[str | None, dict[str, int]] = {}
 
     def _tally(axis, grade):
-        bucket = counts.setdefault(axis, {"PASS": 0, "WARNING": 0, "FAIL": 0})
+        bucket = counts.setdefault(axis, {g: 0 for g in _GRADE_ORDER})
         if grade in bucket:
             bucket[grade] += 1
 
@@ -338,7 +345,7 @@ def axis_breakdown_section(data: dict) -> str:
         axes = r.get("backend_exploited_axes", {}) or {}
         grades = r.get("backend_grades", {}) or {}
         for provider, axis in axes.items():
-            bucket = cross_counts.setdefault(axis, {"PASS": 0, "WARNING": 0, "FAIL": 0})
+            bucket = cross_counts.setdefault(axis, {g: 0 for g in _GRADE_ORDER})
             grade = grades.get(provider)
             if grade in bucket:
                 bucket[grade] += 1
@@ -346,26 +353,33 @@ def axis_breakdown_section(data: dict) -> str:
     if not counts and not cross_counts:
         return ""
 
+    _CELL_CLASS = {
+        "FULL_DEFENSE": "",
+        "FUNCTIONAL_DEFENSE": "",
+        "PARTIAL_EXPOSURE": "warn-n",
+        "BREACH": "fail-n",
+    }
+
     def _rows(tally: dict) -> str:
         rows = ""
         for axis in sorted(tally, key=lambda a: (a is None, a)):
             g = tally[axis]
-            total = g["PASS"] + g["WARNING"] + g["FAIL"]
+            total = sum(g[grade] for grade in _GRADE_ORDER)
             label = _AXIS_LABELS.get(axis, esc(axis))
-            rows += (
-                f"<tr><td>{label}</td><td>{total}</td>"
-                f"<td>{g['PASS']}</td>"
-                f"<td class=\"warn-n\">{g['WARNING']}</td>"
-                f"<td class=\"fail-n\">{g['FAIL']}</td></tr>"
+            cells = "".join(
+                f'<td class="{_CELL_CLASS[grade]}">{g[grade]}</td>' for grade in _GRADE_ORDER
             )
+            rows += f"<tr><td>{label}</td><td>{total}</td>{cells}</tr>"
         return rows
+
+    header_cells = "".join(f"<th>{g}</th>" for g in _GRADE_ORDER)
 
     cross_block = ""
     if cross_counts:
         cross_block = f"""
   <p class="section-note" style="margin-top:18px;">교차 모델 검증(3개 백엔드, 축 태그가 백엔드별로 따로 남음)</p>
   <table class="axis-table">
-    <thead><tr><th>축</th><th>계</th><th>PASS</th><th>WARNING</th><th>FAIL</th></tr></thead>
+    <thead><tr><th>축</th><th>계</th>{header_cells}</tr></thead>
     <tbody>{_rows(cross_counts)}</tbody>
   </table>"""
 
@@ -373,11 +387,11 @@ def axis_breakdown_section(data: dict) -> str:
 <section>
   <h2>공격이 파고든 5W1H 축 집계 <span class="tag">§4.1.2 진단 태그, exploited_axis</span></h2>
   <p class="section-note">
-    자가 치유 라운드 전체 + 헬드아웃 + 적응형 재공격을 합산한 집계입니다. 점수 자체에는 영향이 없는
-    진단용 태그이며, 어느 축에 실패(WARNING/FAIL)가 몰려 있는지를 보여줍니다.
+    자가 치유 라운드 전체 + 헬드아웃 + 적응형 재공격을 합산한 집계입니다. 등급 자체에는 영향이 없는
+    진단용 태그이며, 어느 축에 방어 실패(PARTIAL_EXPOSURE/BREACH)가 몰려 있는지를 보여줍니다.
   </p>
   <table class="axis-table">
-    <thead><tr><th>축</th><th>계</th><th>PASS</th><th>WARNING</th><th>FAIL</th></tr></thead>
+    <thead><tr><th>축</th><th>계</th>{header_cells}</tr></thead>
     <tbody>{_rows(counts)}</tbody>
   </table>{cross_block}
 </section>"""
