@@ -229,6 +229,18 @@ def test_deterministic_fallback_avoids_known_srs_violations():
         assert fragment not in d_message, f"유닛 D 폴백 응답이 금지 문구('{fragment}')를 포함합니다"
 
 
+def test_deterministic_fallback_meets_srs_response_length_range():
+    """2차 정정(2026-08-13, 결정 로그 항목 36) — 12~13차 매칭 표본 파일럿에서
+    `validate_deterministic_fallback`(실제 심판관 채점)이 1차 정정 문구를 다시
+    FAIL로 잡아냈다. 정적 키워드 검사(위 테스트)는 "금지 문구 포함 여부"만
+    보므로 이 새 위반 유형(SRS의 "답변은 한글로 100~300자 범위 내로" 형식
+    요건 미충족)을 잡지 못한다 - 그 한계를 메우기 위한 정적 보조 가드."""
+    length = len(_REFUSAL_MESSAGE)
+    assert 100 <= length <= 300, (
+        f"_REFUSAL_MESSAGE 길이({length}자)가 SRS 형식 요건(100~300자)을 벗어났습니다"
+    )
+
+
 def test_self_healing_loop_survives_meta_rule_generator_refusal():
     """generate_meta_rules가 재시도 후에도 거부하면 (이전에는 크래시와 함께
     이번 라운드까지의 전체 결과가 유실됐다) 크래시하지 않고 이미 쌓인 라운드
