@@ -38,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hongik_selfheal.attack_generator import generate_full_pool, load_pool, save_pool, stratified_split  # noqa: E402
 from hongik_selfheal.call_logger import CallLogger  # noqa: E402
+from hongik_selfheal.canary import check_canary_drift, save_canary_baseline  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
 from hongik_selfheal.experiment import run_full_experiment, save_experiment_output  # noqa: E402
 from hongik_selfheal.fake_members import FAKE_MEMBERS, MEMBERS_VERSION, save_members_snapshot  # noqa: E402
@@ -154,6 +155,29 @@ def parse_args() -> argparse.Namespace:
         help="모든 API 호출의 원문 요청/응답을 JSONL로 남기지 않음 (기본은 남김 - "
         "심판관 스팟체크·재현성 근거 데이터 확보용, thesis.md §3.6.2/§6). "
         "저장 용량이 문제되면 이 플래그로 끄거나 raw_calls_*.jsonl을 실행 후 압축/이동할 것",
+    )
+    parser.add_argument(
+        "--canary-baseline",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "data" / "canary_baseline.json",
+        help="drift 카나리아(canary.py) 기준선 파일 경로. 추가 API 호출 없이 이번 실행의 "
+        "usage_summary(역할별 평균 토큰·오류율)를 이 파일과 비교만 한다(thesis.md §6, 결정 "
+        "로그 항목 32) — 실행이 하나 늘어날 뿐 비용은 그대로다.",
+    )
+    parser.add_argument(
+        "--no-canary",
+        dest="canary",
+        action="store_false",
+        default=True,
+        help="drift 카나리아 비교를 건너뜀",
+    )
+    parser.add_argument(
+        "--save-canary-baseline",
+        action="store_true",
+        default=False,
+        help="이번 실행의 usage_summary를 새 카나리아 기준선으로 저장(--canary-baseline 경로에 "
+        "덮어씀). 연구자가 '이 실행은 정상'이라고 확인한 실행에서만 수동으로 켤 것 — 매번 "
+        "자동 갱신하면 drift가 있어도 기준선이 함께 밀려 영원히 못 잡는다.",
     )
     return parser.parse_args()
 
@@ -295,6 +319,36 @@ def main() -> None:
     if call_logger is not None:
         call_logger.close()
         output["usage_summary"] = call_logger.usage_summary()
+
+        if args.canary:
+            canary_warnings = check_canary_drift(output["usage_summary"], args.canary_baseline)
+            output["canary_warnings"] = canary_warnings
+            if canary_warnings:
+                print(f"\n⚠ [카나리아] 기준선({args.canary_baseline}) 대비 이상 신호 {len(canary_warnings)}건 감지:")
+                for w in canary_warnings:
+                    print(f"  {w}")
+            elif args.canary_baseline.exists():
+                print(f"\n[카나리아] 기준선({args.canary_baseline}) 대비 이상 없음")
+            else:
+                print(f"\n[카나리아] 기준선 파일이 없어 비교를 건너뜀 ({args.canary_baseline})")
+
+        if args.save_canary_baseline:
+            saved = save_canary_baseline(output["usage_summary"], args.canary_baseline)
+            print(f"[카나리아] 이번 실행을 새 기준선으로 저장: {saved}")
+
+    fbc = output.get("deterministic_fallback_check")
+    if fbc:
+        if fbc.get("ok") is False:
+            print(
+                f"\n⚠ [결정론적 폴백 문구 점검] '{fbc['message']}'가 활성 SRS({fbc['srs_version']}) "
+                f"기준으로 {fbc.get('grade')}({fbc.get('score')}점) 판정을 받았습니다 - "
+                f"이 문구가 뜨는 모든 Unit A/D 차단 시나리오가 인위적으로 감점됩니다. "
+                f"사유: {fbc.get('reason')}"
+            )
+        elif fbc.get("ok") is None:
+            print(f"\n[결정론적 폴백 문구 점검] 사전 점검 자체가 거부됨 - 확인 못함 ({fbc.get('error')})")
+        else:
+            print(f"\n[결정론적 폴백 문구 점검] 통과 (활성 SRS {fbc['srs_version']} 기준 {fbc.get('grade')})")
 
     out_path = args.output or (results_dir / f"experiment_{run_id}.json")
     save_experiment_output(output, out_path)

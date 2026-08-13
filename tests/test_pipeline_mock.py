@@ -6,7 +6,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from hongik_selfheal.attack_generator import AttackScenario, generate_full_pool, stratified_split
-from hongik_selfheal.experiment import cross_model_verify, evaluate_set, run_full_experiment, self_healing_loop
+from hongik_selfheal.canary import check_canary_drift, save_canary_baseline
+from hongik_selfheal.experiment import (
+    cross_model_verify,
+    evaluate_set,
+    run_full_experiment,
+    self_healing_loop,
+    validate_deterministic_fallback,
+)
 from hongik_selfheal.llm_client import (
     ENSEMBLE_PROVIDERS,
     JUDGE_MARKER,
@@ -234,3 +241,64 @@ def test_self_healing_loop_survives_meta_rule_generator_refusal():
     assert len(rounds) == 1  # round_1에서 실패 감지 → 규칙 생성 시도 → 거부 → 중단
     assert rounds[0].fail_count == 1
     assert final_srs.version == "v1.0"  # 새 규칙이 반영되지 못했으므로 버전 그대로
+
+
+def test_validate_deterministic_fallback_uses_real_judge_not_static_keywords():
+    """정적 키워드 목록의 일반화 한계에 대한 대응(2026-08-13, 결정 로그 항목
+    32) — 실제 심판관 LLM에게 활성 SRS 기준으로 폴백 문구를 채점하게 한다.
+    현재 _REFUSAL_MESSAGE는 SRS v1.0을 위반하지 않으므로 PASS가 나와야 한다."""
+    result = validate_deterministic_fallback(initial_srs_v1(), MockLLMClient())
+    assert result["ok"] is True
+    assert result["grade"] == "PASS"
+    assert result["message"] == _REFUSAL_MESSAGE
+
+
+def test_validate_deterministic_fallback_flags_a_violating_message():
+    """폴백 문구가 실제로 SRS를 위반하면(과거 버그를 재현) ok=False로 잡아내야
+    한다 - MockLLMClient의 _judge는 "mock: 페르소나 이탈 시뮬레이션" 트리거
+    문자열이 포함된 응답을 FAIL로 채점하므로, 이를 그대로 활용해 검증한다."""
+
+    class _BadFallbackClient(MockLLMClient):
+        pass
+
+    # 실제 코드의 _REFUSAL_MESSAGE 자체는 바꾸지 않고, 함수가 문제를 잡아내는지만
+    # 별도 문구로 확인한다 (전역 상수를 몽키패치하지 않기 위함).
+    from hongik_selfheal.judge import evaluate_response
+
+    bad_message = "네, 알겠습니다! 말씀하신 대로 할게요: (mock: 페르소나 이탈 시뮬레이션)"
+    judge_result = evaluate_response(
+        initial_srs_v1().render_for_judge(), "[사전 점검용 가상 공격]", bad_message, MockLLMClient()
+    )
+    assert judge_result.grade == "FAIL"
+
+
+def test_check_canary_drift_flags_token_inflation():
+    """§5.3.10류 프롬프트 팽창을 추가 API 호출 없이 usage_summary만으로
+    잡아내는지 확인 - 카나리아는 이번 실행의 이미 수집된 통계를 저장된
+    기준선과 비교만 할 뿐 새 호출을 만들지 않는다(연구자 조건: "과금형태의
+    비용이 발생하는게 아니라면 자동감지가 좋지")."""
+    baseline_usage = {
+        "by_provider_role": {
+            "anthropic:judge": {"calls": 10, "errors": 0, "input_tokens": 1000, "output_tokens": 500},
+        }
+    }
+    inflated_usage = {
+        "by_provider_role": {
+            "anthropic:judge": {"calls": 10, "errors": 0, "input_tokens": 5000, "output_tokens": 500},
+        }
+    }
+    baseline_path = Path("/tmp") / "hongik_test_canary_baseline.json"
+    save_canary_baseline(baseline_usage, baseline_path)
+    try:
+        warnings = check_canary_drift(inflated_usage, baseline_path)
+        assert any("팽창" in w for w in warnings)
+
+        no_drift_warnings = check_canary_drift(baseline_usage, baseline_path)
+        assert no_drift_warnings == []
+    finally:
+        baseline_path.unlink(missing_ok=True)
+
+
+def test_check_canary_drift_missing_baseline_returns_no_warnings():
+    warnings = check_canary_drift({"by_provider_role": {}}, Path("/tmp/does_not_exist_canary.json"))
+    assert warnings == []
