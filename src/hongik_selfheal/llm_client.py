@@ -108,12 +108,18 @@ class OpenAIClient(LLMClient):
                 ],
             )
             text = response.choices[0].message.content or ""
+            # OpenAI는 별도 코드 변경 없이 1024토큰 이상 프롬프트를 자동 캐싱한다.
+            # 적중 여부를 직접 확인할 방법이 없었는데, prompt_tokens_details.
+            # cached_tokens가 그 적중 토큰 수를 알려준다 (2026-08-19, 결정로그 44).
+            details = getattr(response.usage, "prompt_tokens_details", None)
+            cached_tokens = getattr(details, "cached_tokens", None) if details else None
             self._log(
                 role, system, user, text,
                 model_version=response.model,
                 input_tokens=getattr(response.usage, "prompt_tokens", None),
                 output_tokens=getattr(response.usage, "completion_tokens", None),
                 latency_ms=(time.monotonic() - started) * 1000,
+                cache_read_input_tokens=cached_tokens,
             )
             return text
         except Exception as e:
@@ -125,7 +131,7 @@ class OpenAIClient(LLMClient):
             raise
 
     def _log(self, role, system, user, text, *, model_version, input_tokens, output_tokens,
-              latency_ms, error=None):
+              latency_ms, error=None, cache_read_input_tokens=None):
         if self._logger is None:
             return
         self._logger.log(CallRecord(
@@ -134,6 +140,7 @@ class OpenAIClient(LLMClient):
             system_prompt=system, user_prompt=user, raw_response=text,
             input_tokens=input_tokens, output_tokens=output_tokens,
             latency_ms=latency_ms, error=error,
+            cache_read_input_tokens=cache_read_input_tokens,
         ))
 
 
@@ -172,11 +179,17 @@ class GeminiClient(LLMClient):
                     f"(finish_reason={finish_reason!r}): {e}"
                 ) from e
             usage = getattr(response, "usage_metadata", None)
+            # Gemini도 explicit/implicit 캐싱 적중 시 cached_content_token_count를
+            # usage_metadata에 채워준다 (2026-08-19, 결정로그 44) — 코드 변경 없이
+            # 적중 여부만 관측하기 위한 필드.
             self._log(
                 role, system, user, text, model_version=self._model_name,
                 input_tokens=getattr(usage, "prompt_token_count", None) if usage else None,
                 output_tokens=getattr(usage, "candidates_token_count", None) if usage else None,
                 latency_ms=(time.monotonic() - started) * 1000,
+                cache_read_input_tokens=(
+                    getattr(usage, "cached_content_token_count", None) if usage else None
+                ),
             )
             return text
         except Exception as e:
@@ -188,7 +201,7 @@ class GeminiClient(LLMClient):
             raise
 
     def _log(self, role, system, user, text, *, model_version, input_tokens, output_tokens,
-              latency_ms, error=None):
+              latency_ms, error=None, cache_read_input_tokens=None):
         if self._logger is None:
             return
         self._logger.log(CallRecord(
@@ -197,6 +210,7 @@ class GeminiClient(LLMClient):
             system_prompt=system, user_prompt=user, raw_response=text,
             input_tokens=input_tokens, output_tokens=output_tokens,
             latency_ms=latency_ms, error=error,
+            cache_read_input_tokens=cache_read_input_tokens,
         ))
 
 
@@ -230,6 +244,8 @@ class AnthropicClient(LLMClient):
             input_tokens=getattr(response.usage, "input_tokens", None),
             output_tokens=getattr(response.usage, "output_tokens", None),
             latency_ms=(time.monotonic() - started) * 1000,
+            cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
+            cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
         )
         return text
 
@@ -242,7 +258,18 @@ class AnthropicClient(LLMClient):
             # 레드팀 생성기가 여러 개의 공격 문장을 JSON 배열로 한 번에 반환할 때
             # 1024토큰으로는 중간에 잘려 JSON 파싱이 깨지는 사례가 있어 여유있게 잡는다.
             max_tokens=max_tokens,
-            system=system,
+            # 프롬프트 캐싱(2026-08-19, 결정로그 44): system 전체를 하나의
+            # cache_control 블록으로 감싼다. judge/unit_c/meta_rule_gen 등 모든
+            # 호출자가 완성된 문자열 하나만 넘기는 LLMClient.complete(system: str,
+            # ...) 인터페이스를 그대로 유지하기 위해, "정적 접두사/동적 접미사"를
+            # 나누는 2-브레이크포인트 설계 대신 호출당 단일 브레이크포인트로
+            # 단순화했다 — 호출자 쪽 코드는 전혀 바꾸지 않아도 된다. judge.py의
+            # system은 라운드 내내 동일(§4.1의 {srs_excerpt}만 라운드 단위로
+            # 바뀜)하므로, 한 라운드 안에서 반복되는 채점/생성 호출들이 캐시를
+            # 적중시킨다. TTL(기본 ephemeral=5분) 내에 다음 호출이 오지 않으면
+            # 캐시가 만료돼 재적중하지 못하지만, 판정/생성 호출은 라운드 내에서
+            # 촘촘히 이어지므로 대부분 TTL 안에 든다.
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": user}],
         )
         try:
@@ -272,6 +299,8 @@ class AnthropicClient(LLMClient):
                 output_tokens=getattr(response.usage, "output_tokens", None),
                 latency_ms=(time.monotonic() - started) * 1000,
                 error=f"refusal (partial_text_len={len(text)})",
+                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
+                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
             )
             raise LLMRefusalError(
                 "Anthropic이 안전성 정책으로 응답을 거부/중단했습니다 "
@@ -292,6 +321,8 @@ class AnthropicClient(LLMClient):
                 output_tokens=getattr(response.usage, "output_tokens", None),
                 latency_ms=(time.monotonic() - started) * 1000,
                 error=f"max_tokens 소진(텍스트 없음), {max_tokens*2}로 재시도",
+                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
+                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
             )
             return self._call(
                 system, user, temperature, role=role, started=started,
@@ -307,6 +338,8 @@ class AnthropicClient(LLMClient):
                 output_tokens=getattr(response.usage, "output_tokens", None),
                 latency_ms=(time.monotonic() - started) * 1000,
                 error=f"응답에 텍스트 없음 (stop_reason={response.stop_reason!r})",
+                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
+                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
             )
             raise LLMRefusalError(
                 "Anthropic 응답에 텍스트가 없어 채점/생성이 불가합니다 "
@@ -317,7 +350,7 @@ class AnthropicClient(LLMClient):
         return text, response
 
     def _log(self, role, system, user, text, *, model_version, input_tokens, output_tokens,
-              latency_ms, error=None):
+              latency_ms, error=None, cache_creation_input_tokens=None, cache_read_input_tokens=None):
         if self._logger is None:
             return
         self._logger.log(CallRecord(
@@ -326,6 +359,8 @@ class AnthropicClient(LLMClient):
             system_prompt=system, user_prompt=user, raw_response=text,
             input_tokens=input_tokens, output_tokens=output_tokens,
             latency_ms=latency_ms, error=error,
+            cache_creation_input_tokens=cache_creation_input_tokens,
+            cache_read_input_tokens=cache_read_input_tokens,
         ))
 
 

@@ -31,6 +31,12 @@ class CallRecord:
     output_tokens: int | None
     latency_ms: float | None
     error: str | None = None
+    # 프롬프트 캐싱 적중 여부(2026-08-19, thesis.md 결정로그 44). Anthropic은
+    # cache_creation(신규 캐시 기록)/cache_read(캐시 적중) 토큰을 input_tokens와
+    # 별도로 반환한다. OpenAI/Gemini는 자동 캐싱이라 "적중된 토큰 수"만
+    # 있고 신규 기록이라는 개념이 없어 cache_read_input_tokens만 채워진다.
+    cache_creation_input_tokens: int | None = None
+    cache_read_input_tokens: int | None = None
 
 
 class CallLogger:
@@ -58,10 +64,16 @@ class CallLogger:
         total_cost = 0.0
         error_count = 0
 
+        total_cache_creation = 0
+        total_cache_read = 0
+
         for r in self._records:
             key = f"{r.provider}:{r.role}"
             bucket = by_provider_role.setdefault(
-                key, {"calls": 0, "input_tokens": 0, "output_tokens": 0, "errors": 0}
+                key, {
+                    "calls": 0, "input_tokens": 0, "output_tokens": 0, "errors": 0,
+                    "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                }
             )
             bucket["calls"] += 1
             if r.error:
@@ -70,25 +82,42 @@ class CallLogger:
                 continue
             in_tok = r.input_tokens or 0
             out_tok = r.output_tokens or 0
+            cache_creation = r.cache_creation_input_tokens or 0
+            cache_read = r.cache_read_input_tokens or 0
             bucket["input_tokens"] += in_tok
             bucket["output_tokens"] += out_tok
+            bucket["cache_creation_input_tokens"] += cache_creation
+            bucket["cache_read_input_tokens"] += cache_read
             total_input += in_tok
             total_output += out_tok
+            total_cache_creation += cache_creation
+            total_cache_read += cache_read
 
             price = PRICING_TABLE.get(r.model)
             if price:
                 in_price, out_price = price
-                total_cost += in_tok / 1_000_000 * in_price + out_tok / 1_000_000 * out_price
+                # Anthropic 프롬프트 캐싱 단가(2026 기준 ephemeral/5분 TTL): 캐시
+                # 신규 기록은 기본 입력가의 1.25배, 캐시 적중분은 0.1배. 캐싱을
+                # 쓰지 않는 프로바이더/호출은 cache_* 값이 0이라 기존 계산과 동일하다.
+                total_cost += (
+                    in_tok / 1_000_000 * in_price
+                    + out_tok / 1_000_000 * out_price
+                    + cache_creation / 1_000_000 * in_price * 1.25
+                    + cache_read / 1_000_000 * in_price * 0.1
+                )
 
         return {
             "total_calls": len(self._records),
             "total_errors": error_count,
             "total_input_tokens": total_input,
             "total_output_tokens": total_output,
+            "total_cache_creation_input_tokens": total_cache_creation,
+            "total_cache_read_input_tokens": total_cache_read,
             "estimated_cost_usd": round(total_cost, 4),
             "cost_note": (
                 "PRICING_TABLE의 개략 단가로 계산한 참고치입니다. 실제 청구액은 "
-                "각 콘솔의 결제 내역을 확인하십시오."
+                "각 콘솔의 결제 내역을 확인하십시오. 캐시 단가(쓰기 1.25배/읽기 "
+                "0.1배)도 근사치입니다."
             ),
             "by_provider_role": by_provider_role,
         }
