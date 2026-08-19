@@ -1,0 +1,12 @@
+%%{init: {"themeVariables": {"fontSize": "34px"}, "flowchart": {"wrappingWidth": 300}}}%%
+flowchart LR
+    IN(["시나리오<br/>입력"]) --> UA["유닛 A<br/>입력<br/>가드레일<br/>프롬프트<br/>인젝션<br/>패턴 1차<br/>차단"]
+    UA --> UB["유닛 B<br/>RAG 검색<br/>SRS·상품<br/>데이터<br/>검색"]
+    UB --> UC["유닛 C<br/>LLM 추론<br/>주 모델,<br/>SRS+<br/>Meta-Rule<br/>반영"]
+    UC --> UD["유닛 D<br/>출력<br/>가드레일<br/>결정론적<br/>규칙<br/>최종 응답<br/>검증"]
+    UD --> OUT(["챗봇<br/>응답"])
+
+    style UA fill:#dce6f1,stroke:#4472c4
+    style UB fill:#dce6f1,stroke:#4472c4
+    style UC fill:#dce6f1,stroke:#4472c4
+    style UD fill:#dce6f1,stroke:#4472c4

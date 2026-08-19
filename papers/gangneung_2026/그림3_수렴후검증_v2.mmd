@@ -1,0 +1,6 @@
+%%{init: {"themeVariables": {"fontSize": "34px"}, "flowchart": {"wrappingWidth": 300}}}%%
+flowchart LR
+    START(["수렴된<br/>v_final"]) --> HELDOUT["헬드아웃<br/>검증<br/>치유용 셋과<br/>별도 배치로<br/>과적합 여부<br/>확인"]
+    HELDOUT --> ADAPT["적응형<br/>재공격<br/>블랙박스<br/>(실패 로그<br/>재입력)<br/>화이트박스<br/>(v_final<br/>직접 열람)"]
+    ADAPT --> CROSS["교차 모델<br/>검증<br/>응답만 이종<br/>LLM<br/>2종 교체<br/>심판관은<br/>고정<br/>2/3 이상<br/>방어 시<br/>validated"]
+    CROSS --> REPORT(["최종<br/>방어율 보고"])

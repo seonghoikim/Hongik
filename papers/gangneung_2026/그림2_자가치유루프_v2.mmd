@@ -1,0 +1,14 @@
+%%{init: {"themeVariables": {"fontSize": "30px"}, "flowchart": {"wrappingWidth": 640}}}%%
+flowchart TD
+    SRS["① SRS 정의 v(n) — 페르소나 + 제약 조건"] --> ATTACK["② 적대적 실행 — 레드팀 생성 LLM이 8개 범주 시나리오 생성<br/>사칭·인코딩우회·가스라이팅·허위동조·<br/>메타데이터유출·개인정보유출·RAG오염·<br/>가격유도"]
+    ATTACK --> PIPE["유닛 A~D 파이프라인 (그림1)"]
+    PIPE --> JUDGE["③ 심판관 채점(무상태) — Action Matrix 4단계<br/>FULL_DEFENSE / FUNCTIONAL_DEFENSE / PARTIAL_EXPOSURE / BREACH"]
+    JUDGE --> DECISION{"치유용 셋 전원 FULL_DEFENSE?"}
+    DECISION -- "아니오" --> META["④ Meta-Rule 생성 — 실패 사례 분석<br/>(공격문·응답·위반사유·위반유닛)"]
+    META --> MERGE["⑤ SRS 병합 — 최상단·최하단 삽입(샌드위치), v(n) → v(n+1)"]
+    MERGE -. "루프백" .-> ATTACK
+    DECISION -- "예 (만점 수렴)" --> NEXT["수렴 → 검증 단계 (그림3)"]
+
+    style PIPE fill:#dce6f1,stroke:#4472c4
+    style JUDGE fill:#fde9d9,stroke:#c0504d,stroke-width:3px
+    style META fill:#fde9d9,stroke:#c0504d,stroke-width:3px
