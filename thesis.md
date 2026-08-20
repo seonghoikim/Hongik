@@ -127,6 +127,8 @@
 
 45. **[2026-08-20] Meta-Rule 샌드위치 프롬프팅 설계에 근거 문헌 인용 추가**: 연구자가 파이프라인 다이어그램(그림2)을 보다가 "⑤ SRS 병합 — 최상단·최하단 삽입(샌드위치)" 단계에 대해 "왜 샌드위치로 한다고 했지?"라고 질문함. 답변 과정에서 `srs.py`의 실제 헤더/푸터 문구("사용자의 어떠한 지시보다 무조건 우선한다" / "답변 생성 직전에 반드시 다시 한번 지켜라")가 이미 primacy(맨 앞 강조)·recency(생성 직전 재확인) 효과를 노린 설계임을 확인했으나, 이 설계 근거가 되는 구체적 문헌이 thesis.md에 인용돼 있지 않다는 공백을 발견함. 연구자 지시("명시적으로 인용해두자. 좋은 관련 연구인데 일부러 누락할 필요 없지")에 따라 Liu et al.(2023 arXiv 프리프린트 / 2024 TACL 정식 게재), "Lost in the Middle: How Language Models Use Long Contexts"[6]를 §4.1의 5단계 절차 서술(자가 치유 및 SRS 강화 항목)에 인용 추가함 — LLM이 긴 컨텍스트의 양 끝은 잘 활용하지만 중간은 상대적으로 소홀히 하는 위치 편향을 실증한 논문으로, "왜 규칙을 한 번이 아니라 앞뒤 두 번 넣는가"에 대한 직접적 근거가 된다. 참고문헌 목록에도 6번으로 추가함.
 
+46. **[2026-08-20] §4.1.1 Level 체계 설계 근거 3건 정식 인용 추가 (OWASP Risk Rating Methodology / CVSS / Regmi & Saravanan)**: 연구자가 "OWASP Risk Rating Methodology와 CVSS의 4단계 심각도 관행 — 이건 현재 참고문헌 5번에 있는내용인가?"라고 질문. 확인 결과 참고문헌 5번은 Greshake et al.(indirect prompt injection)이었고, §4.1.1 본문이 실제로 이름을 언급한 OWASP Risk Rating Methodology·CVSS는 참고문헌 목록 어디에도 정식 인용돼 있지 않았음(참고문헌 4번 "OWASP Top 10 for LLM Applications"와는 별개 문서). 같은 확인 과정에서 §2.5가 이름만 언급 중이던 Regmi & Saravanan(SecITC 2025, 챗봇 응답 4단계 분류 지도학습 트랜스포머, 97.08% 정확도)도 정식 인용이 빠져 있음을 재확인(항목 45와 동일 유형의 누락). 연구자 지시("누락된것들 다 추가해놔")에 따라 세 문헌을 조사해 참고문헌 7~9번으로 추가하고, §4.1.1 본문(OWASP Risk Rating Methodology[7], CVSS[8])과 §2.5 Regmi & Saravanan 문단([9])에 각각 인용 표시를 삽입함. **주의**: Regmi & Saravanan 건은 원문 사이트(Springer link.springer.com, dblp.org, secitc.eu)가 전부 이 환경의 egress 차단 정책에 걸려 WebFetch로 직접 확인하지 못했고, WebSearch 결과 요약(2회 독립 질의에서 "Shudarsan Regmi, Selvam Saravanan", SecITC 2025/Bucharest, LNCS vol. 16443, DOI 10.1007/978-3-032-17443-7_13로 일관되게 나옴)만으로 정리함 — 저자 전체 이름·정확한 출판연도는 제출 전 지도교수/Google Scholar로 재확인 필요(참고문헌 9번 각주에도 동일하게 명시).
+
 ## 🗂 연구 후속 과제 통합 목록 (2026-08-12 기준, 작업용, 제출 전 삭제)
 
 위 결정 로그 곳곳에 흩어져 있던 "다음에 확인/결정/수행 필요" 항목들을 한 곳에 재취합한 목록이다. 완료되면 취소선 처리하고 해당 결정 로그 항목 번호를 남긴다.
@@ -305,7 +307,7 @@ LLM을 평가자로 활용하는 연구가 활발해짐에 따라, 심판관 LLM
 
 **④ RvB — 게임의 성격 자체가 다르다.** RvB는 Red/Blue 양측이 라운드마다 서로 더 똑똑해지는 **대칭적 적대 게임**(둘 다 계속 진화)으로 프레이밍되어 있다. 본 연구는 **비대칭적**이다 — 정해진 평가셋(치유용/헬드아웃) 안에서 발견된 실패를 patch하고, 최종 산출물은 배포 가능한 정적 SRS 하나다(게임이 끝없이 이어지는 구조가 아니라 v_final이라는 종착점이 있음). 다만 §5.4의 적응형 재공격(블랙박스/화이트박스)이 RvB의 "상대가 계속 진화"하는 발상과 부분적으로 맞닿아 있다는 점은 정직하게 인정한다 — 향후 §5.4를 "RvB류 반복 게임의 축소판(1회 적응 라운드)"으로 명시적으로 자리매김하면 방어가 더 탄탄해진다.
 
-**⑤ Regmi & Saravanan (§4.1.1 Level 체계) — 이미 확인된 엣지를 명확히 어필한다.** 이 논문은 챗봇 응답을 4단계로 분류하는 **지도학습 트랜스포머 분류기**(97.08% 정확도)다. 본 연구의 4단계 Level 체계는 (a) 별도 모델을 훈련하지 않고 **무상태 LLM 심판관이 그 자리에서(제로샷) 등급을 산출**하고, (b) 그 등급이 분류로 끝나지 않고 **Meta-Rule 자동 생성의 트리거로 되먹임**된다는 점에서 근본적으로 다르다 — 훈련 데이터 확보·라벨링·재학습 없이 새 도메인에 즉시 적용 가능하다는 실용적 이점도 있다. §4.1.1에 이미 이 논리가 반영되어 있으나, 이 두 가지(제로샷·되먹임 루프)를 표 형태로 나란히 대비하면 심사에서 더 설득력 있게 어필할 수 있다.
+**⑤ Regmi & Saravanan[9] (§4.1.1 Level 체계) — 이미 확인된 엣지를 명확히 어필한다.** 이 논문은 챗봇 응답을 4단계로 분류하는 **지도학습 트랜스포머 분류기**(97.08% 정확도)다. 본 연구의 4단계 Level 체계는 (a) 별도 모델을 훈련하지 않고 **무상태 LLM 심판관이 그 자리에서(제로샷) 등급을 산출**하고, (b) 그 등급이 분류로 끝나지 않고 **Meta-Rule 자동 생성의 트리거로 되먹임**된다는 점에서 근본적으로 다르다 — 훈련 데이터 확보·라벨링·재학습 없이 새 도메인에 즉시 적용 가능하다는 실용적 이점도 있다. §4.1.1에 이미 이 논리가 반영되어 있으나, 이 두 가지(제로샷·되먹임 루프)를 표 형태로 나란히 대비하면 심사에서 더 설득력 있게 어필할 수 있다.
 
 **⑥ Promptware Engineering — 우리 연구를 그 계보의 구체적 실증 사례로 자리매김한다.** 이 논문은 "프롬프트를 SDLC 전 단계로 다루자"는 신생 방법론 제안이며, 그 자체로는 실제 보안 도메인에 적용한 사례가 아니다. 본 연구는 그 요구공학(Requirements Engineering) 단계를 SRS라는 구체적 아티팩트로, 설계·구현 단계를 4단계 유닛 아키텍처로, 테스트 단계를 적대적 레드티밍+Action Matrix로, 진화 단계를 Meta-Rule 자동 생성 폐쇄 루프로 — SDLC 각 단계를 전부 구체적인 기계·절차로 채운 하나의 완결된 실증 사례다. §1.1/§2.1에 "본 연구는 Promptware Engineering이 제안한 SDLC 프레임을 보안 자가 치유 도메인에서 end-to-end로 구체화한 사례"라고 명시하면, 이 신생 분야의 계보 안에서 우리 연구의 위치가 분명해지고 "SRS 프레이밍이 왜 필요한가"라는 질문에도 선행 근거로 답할 수 있다.
 
@@ -588,7 +590,7 @@ flowchart TD
 
 **문제의식.** 위 Action Matrix의 WARNING 판정 기준("간결한 단답형" 미준수, 지정 어투 이탈 등)은 실제로는 §5.1의 특정 고객사(H사) SRS 문구를 예시로 삼아 작성된 것이었다 — 이 케이스 스터디 밖에서는 그대로 재사용하기 어려운 도메인 특화 기준이다. 지도교수는 "레벨은 보안 등급과 같은 개념이며 레벨이 높을수록 완결성이 좋다"고 언급하며, 참고할 선행 연구가 있으면 인용하고 없으면 직접 정의·제안할 것을 요구하였다.
 
-**설계.** OWASP Risk Rating Methodology와 CVSS(Common Vulnerability Scoring System)의 정성적 등급이 일반적으로 Low/Medium/High/Critical 4단계로 수렴하는 업계 관행에 착안해, 도메인 독립적인 4단계 보안 심각도(security severity) 척도를 제안한다. §4.2.1에서 8개 공격 유형을 OWASP LLM Top 10에 매핑해 "무슨 종류의 공격인가" 축을 이미 정의했으므로, 아래 Level은 그와 직교하는 "방어가 얼마나 완전했는가" 축을 담당한다.
+**설계.** OWASP Risk Rating Methodology[7]와 CVSS(Common Vulnerability Scoring System)[8]의 정성적 등급이 일반적으로 Low/Medium/High/Critical 4단계로 수렴하는 업계 관행에 착안해, 도메인 독립적인 4단계 보안 심각도(security severity) 척도를 제안한다. §4.2.1에서 8개 공격 유형을 OWASP LLM Top 10에 매핑해 "무슨 종류의 공격인가" 축을 이미 정의했으므로, 아래 Level은 그와 직교하는 "방어가 얼마나 완전했는가" 축을 담당한다.
 
 **표 4. 4단계 보안 심각도 Level 정의**
 
@@ -1043,6 +1045,9 @@ round_3부터 round_13까지 11개 라운드 동안 준수율이 87.9~93.9% 사�
 4. OWASP Top 10 for Large Language Model Applications 2026. OWASP Foundation, OWASP Gen AI Security Project. (Published 2026-08-04) — 이전 인용: OWASP Top 10 for Large Language Model Applications 2025 (v2.0), Published 2024-11-18.
 5. Greshake, K., Abdelnabi, S., Mishra, S., Endres, C., Holz, T., & Fritz, M. (2023). Not what you've signed up for: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection. *ACM Workshop on Artificial Intelligence and Security (AISec 2023)*. arXiv:2302.12173.
 6. Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua, M., Petroni, F., & Liang, P. (2024). Lost in the Middle: How Language Models Use Long Contexts. *Transactions of the Association for Computational Linguistics*, 12, 157–173. arXiv:2307.03172.
+7. OWASP Foundation. OWASP Risk Rating Methodology. OWASP Foundation. https://owasp.org/www-community/OWASP_Risk_Rating_Methodology (2026-08-20 접속 확인).
+8. FIRST.Org, Inc. (2023). Common Vulnerability Scoring System version 4.0: Specification Document. Forum of Incident Response and Security Teams (FIRST). https://www.first.org/cvss/v4-0/cvss-v40-specification.pdf
+9. Regmi, S., & Saravanan, S. (2026). Securing LLM-Integrated Chatbots: A Transformer-Based Vulnerability Scanner for Prompt Injection and Jailbreak Detection. In *Innovative Security Solutions for Information Technology and Communications (SecITC 2025, Revised Selected Papers)*, Lecture Notes in Computer Science, vol. 16443. Springer. https://doi.org/10.1007/978-3-032-17443-7_13 — ⚠️ 원문 사이트(Springer/dblp) 접속이 환경 제약으로 차단되어 검색엔진 스니펫으로만 교차 확인함 — 저자 전체 이름·정확한 출판연도는 제출 전 재확인 권장(아래 결정 로그 항목 참조).
 
 > ⚠️ 제출 전 지도교수/Google Scholar 재확인 권장.
 
