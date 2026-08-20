@@ -1,0 +1,70 @@
+%%{init: {"themeVariables": {"fontSize": "26px"}, "flowchart": {"wrappingWidth": 300}}}%%
+flowchart TD
+    subgraph PRECHECK["🔍 사전 점검 (이번 실행에 추가)"]
+        direction LR
+        PC1["① 결정론적 차단<br/>문구 사전 검증"]
+        PC2["② Zero-cost<br/>Drift 카나리아"]
+        PC3["③ 대화형<br/>검토 도구"]
+    end
+
+    S1["【구조 3-①】<br/>공격 생성<br/>레드팀 LLM이<br/>카테고리별<br/>시나리오 생성"]
+    PRECHECK --> S1
+
+    subgraph Z2["🔁 구조 2 — 자가 치유 폐쇄 루프"]
+        direction TB
+        L1["① SRS 정의<br/>고객사 페르소나 +<br/>제약 조건"]
+        L2["② 적대적 실행<br/>공격 시나리오로<br/>챗봇 응답 생성"]
+        L1 --> L2
+        L3["③ 심판관 채점<br/>무상태 LLM이<br/>Action Matrix로 판정"]
+        L4["④ Meta-Rule 생성<br/>실패 사례를 분석해<br/>방어 규칙 자동 작성"]
+        L3 --> L4
+        L5["⑤ SRS 병합<br/>헤더·푸터에<br/>삽입 후 재실행"]
+        L4 --> L5
+        LOOP(["⟲ 미수렴 시<br/>②로 돌아가 반복<br/>(라운드 상한까지)"])
+        L5 --> LOOP
+    end
+    S1 --> L1
+
+    subgraph Z1["🧱 구조 1 — 파이프라인 아키텍처 (유닛 A~D)"]
+        direction LR
+        UA["A. 입력 가드레일<br/>명백한 탈옥·사칭·<br/>인코딩 우회만<br/>1차 차단"]
+        UB["B. RAG 검색<br/>내부 지식베이스<br/>에서만 관련<br/>정보 조회"]
+        UC["C. LLM 추론<br/>SRS 페르소나 +<br/>Meta-Rule로<br/>응답 생성"]
+        UD["D. 출력 가드레일<br/>메타데이터·경쟁사<br/>노출 등<br/>최종 필터링"]
+        UA --> UB --> UC --> UD
+    end
+    L2 --> UA
+    UD --> L3
+
+    S3["【구조 3-③】 헬드아웃 검증<br/>치유에 쓰지 않은<br/>별도 문항으로 재검증"]
+    L5 -- "수렴 시<br/>(전원 FULL_DEFENSE)" --> S3
+    S4["【구조 3-④】<br/>적응형 재공격<br/>블랙박스·화이트박스<br/>두 위협 모델로<br/>재공격"]
+    S3 --> S4
+    S5["【구조 3-⑤】 교차 모델 검증<br/>3개 벤더로<br/>응답만 교체<br/>(심판관은 고정)"]
+    S4 --> S5
+    S6["【구조 3-⑥】 통계 검정<br/>Wilcoxon·Mann-Whitney·<br/>Kruskal-Wallis·카이제곱"]
+    S5 --> S6
+
+    NOTE_A["유닛 A는 명백한<br/>우회만 차단한다 —<br/>교묘한 사회공학적<br/>공격(가스라이팅, 어투<br/>강요)은 의도적으로<br/>통과시켜 유닛 C의<br/>SRS·Meta-Rule이<br/>실제로 방어하도록<br/>남긴다"]
+    UA -.- NOTE_A
+
+    NOTE_META["Meta-Rule은 SRS<br/>프롬프트의 헤더+푸터에<br/>이중 삽입된다 — 방어<br/>메커니즘 자체는 규칙을<br/>두 번 강조하되, 심판관<br/>채점 프롬프트에서는<br/>비용 절감을 위해<br/>한 번만 삽입한다"]
+    L5 -.- NOTE_META
+
+    classDef precheck fill:#eeeeee,stroke:#777777,stroke-width:2px
+    classDef zone3 fill:#f1e9fb,stroke:#7b4fb5,stroke-width:3px,color:#3a2560
+    classDef zone2 fill:#fff3e0,stroke:#c07b1e,stroke-width:3px
+    classDef zone1 fill:#dce9fb,stroke:#2a5db0,stroke-width:3px
+    classDef judge fill:#fbdcd2,stroke:#b53d2b,stroke-width:4px
+    classDef note fill:#ffffff,stroke:#999999,stroke-dasharray: 4 3
+
+    class PC1,PC2,PC3 precheck
+    class S1,S3,S4,S5,S6 zone3
+    class L1,L2,L5 zone2
+    class L3,L4 judge
+    class UA,UB,UC,UD zone1
+    class NOTE_A,NOTE_META note
+
+    style PRECHECK fill:#f5f5f5,stroke:#777777,stroke-width:2px
+    style Z2 fill:#fffaf1,stroke:#c07b1e,stroke-width:4px
+    style Z1 fill:#eef4fc,stroke:#2a5db0,stroke-width:4px
