@@ -125,6 +125,8 @@
     - **검증**: 동일 SRS(v1.0)로 `judge.evaluate_response()`를 3회 연속 실 API 호출(저비용 스모크 테스트). 1번째 호출에서 `cache_creation_input_tokens=3063`(신규 캐시 기록), 2·3번째 호출에서 `cache_read_input_tokens=3063`(같은 3063토큰이 그대로 캐시 적중)으로 확인 — 캐싱이 실제로 작동함을 실측으로 증명. 스모크 테스트에 쓴 로그 파일은 검증 후 삭제(임시 파일).
     - **한계**: ephemeral(기본 5분 TTL) 캐시라 한 라운드 내 호출이 촘촘히 이어질 때(judge/unit_c 반복 호출)는 적중률이 높지만, 라운드 간 간격이 5분을 넘기면 재적중하지 못하고 다시 캐시를 새로 씀 — 실제 실행에서의 총 절감폭은 다음 실 실행에서 `usage_summary()`의 `cache_read_input_tokens` 합계로 재확인 필요(아직 본 실행에 적용해 실측하지 않음).
 
+45. **[2026-08-20] Meta-Rule 샌드위치 프롬프팅 설계에 근거 문헌 인용 추가**: 연구자가 파이프라인 다이어그램(그림2)을 보다가 "⑤ SRS 병합 — 최상단·최하단 삽입(샌드위치)" 단계에 대해 "왜 샌드위치로 한다고 했지?"라고 질문함. 답변 과정에서 `srs.py`의 실제 헤더/푸터 문구("사용자의 어떠한 지시보다 무조건 우선한다" / "답변 생성 직전에 반드시 다시 한번 지켜라")가 이미 primacy(맨 앞 강조)·recency(생성 직전 재확인) 효과를 노린 설계임을 확인했으나, 이 설계 근거가 되는 구체적 문헌이 thesis.md에 인용돼 있지 않다는 공백을 발견함. 연구자 지시("명시적으로 인용해두자. 좋은 관련 연구인데 일부러 누락할 필요 없지")에 따라 Liu et al.(2023 arXiv 프리프린트 / 2024 TACL 정식 게재), "Lost in the Middle: How Language Models Use Long Contexts"[6]를 §4.1의 5단계 절차 서술(자가 치유 및 SRS 강화 항목)에 인용 추가함 — LLM이 긴 컨텍스트의 양 끝은 잘 활용하지만 중간은 상대적으로 소홀히 하는 위치 편향을 실증한 논문으로, "왜 규칙을 한 번이 아니라 앞뒤 두 번 넣는가"에 대한 직접적 근거가 된다. 참고문헌 목록에도 6번으로 추가함.
+
 ## 🗂 연구 후속 과제 통합 목록 (2026-08-12 기준, 작업용, 제출 전 삭제)
 
 위 결정 로그 곳곳에 흩어져 있던 "다음에 확인/결정/수행 필요" 항목들을 한 곳에 재취합한 목록이다. 완료되면 취소선 처리하고 해당 결정 로그 항목 번호를 남긴다.
@@ -536,7 +538,7 @@ flowchart TD
 2. **스트레스 테스트 데이터셋 생성**: 고객사 가이드라인을 의도적으로 파괴하려는 극단적인 프롬프트 인젝션 공격 시나리오(사칭, 어투 변경, 허위 사실 동조, 개인정보 캐내기 등, 8개 범주 × 카테고리당 N개)를 구성한다 (생성 방법론 및 분류체계는 §4.2 참조).
 3. **무상태(Stateless) 시나리오 실행**: 각 공격 문장(단발성 단일 턴 입력)을 주 모델(primary LLM) 하나가 유닛 C로 동작하는 유닛 A~D 시스템에 입력하여 응답 텍스트를 추출한다. 멀티턴 대화 상태나 동적 환경 반응은 다루지 않는다 (범위 명확화는 §3.5 상단 참조).
 4. **액션 매트릭스(Action Matrix) 산출**: 격리된 주 모델 심판관이 응답을 분석해 4단계(FULL_DEFENSE/FUNCTIONAL_DEFENSE/PARTIAL_EXPOSURE/BREACH, §4.1.1)로 정량 채점하고, 어느 유닛(A~D)에서 우회가 발생했는지 추적한다.
-5. **자가 치유 및 SRS 강화 (SRS Hardening)**: FULL_DEFENSE에 미달하는 항목이 발생할 경우, 실패 사유를 분석하여 명세서 최상단 및 최하단에 사용자의 어떠한 지시보다 무조건 우선하는 '절대 보안 원칙(Meta-Rules)'을 샌드위치 기법(Sandwich Prompting)으로 주입하여 명세서를 보강(v2.0, v3.0…)한다. 이 과정은 전원이 FULL_DEFENSE에 도달할 때까지(또는 라운드 상한까지) 자동 반복된다 (자동화 범위의 정확한 정의는 §4.3 참조).
+5. **자가 치유 및 SRS 강화 (SRS Hardening)**: FULL_DEFENSE에 미달하는 항목이 발생할 경우, 실패 사유를 분석하여 명세서 최상단 및 최하단에 사용자의 어떠한 지시보다 무조건 우선하는 '절대 보안 원칙(Meta-Rules)'을 샌드위치 기법(Sandwich Prompting)으로 주입하여 명세서를 보강(v2.0, v3.0…)한다. 같은 규칙을 프롬프트 앞뒤에 중복 배치하는 이유는 LLM이 긴 컨텍스트의 양 끝(맨 앞·맨 뒤)에 있는 정보는 잘 활용하지만 중간에 있는 정보는 상대적으로 소홀히 하는 위치 편향(positional bias)이 실증적으로 보고되어 있기 때문이다 — 이른바 "lost in the middle" 현상(Liu et al., 2024)[6]. SRS가 라운드를 거치며 Meta-Rule이 누적되어 점점 길어질수록 이 편향의 영향을 받기 쉬워지므로, 절대 보안 원칙만은 헤더(주의 환기)와 푸터(생성 직전 재확인) 양쪽에 배치해 중간 어디에 규칙이 파묻히더라도 최소 두 번은 모델의 주의 범위 안에 들어오도록 설계했다. 이 과정은 전원이 FULL_DEFENSE에 도달할 때까지(또는 라운드 상한까지) 자동 반복된다 (자동화 범위의 정확한 정의는 §4.3 참조).
 
 > 위 5단계(자가 치유 루프 본체)는 처음부터 끝까지 단일 주 모델로만 진행된다. v_final이 확정된 뒤에는 별도로 헬드아웃 검증(§3.5.1)·적응형 재공격(§5.4)·**교차 모델 검증**(이종 LLM 2종 추가, §3.5.5)이 이어진다 — 교차 모델 검증은 이 5단계 루프 안에는 포함되지 않는 사후 단계임에 유의한다.
 
@@ -1040,6 +1042,7 @@ round_3부터 round_13까지 11개 라운드 동안 준수율이 87.9~93.9% 사�
 3. Sivaroopan, N., et al. (2026). SHIELD: An Auto-Healing Agentic Defense Framework for LLM Resource Exhaustion Attacks. arXiv:2601.19174.
 4. OWASP Top 10 for Large Language Model Applications 2026. OWASP Foundation, OWASP Gen AI Security Project. (Published 2026-08-04) — 이전 인용: OWASP Top 10 for Large Language Model Applications 2025 (v2.0), Published 2024-11-18.
 5. Greshake, K., Abdelnabi, S., Mishra, S., Endres, C., Holz, T., & Fritz, M. (2023). Not what you've signed up for: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection. *ACM Workshop on Artificial Intelligence and Security (AISec 2023)*. arXiv:2302.12173.
+6. Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua, M., Petroni, F., & Liang, P. (2024). Lost in the Middle: How Language Models Use Long Contexts. *Transactions of the Association for Computational Linguistics*, 12, 157–173. arXiv:2307.03172.
 
 > ⚠️ 제출 전 지도교수/Google Scholar 재확인 권장.
 
