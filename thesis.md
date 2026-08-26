@@ -141,6 +141,8 @@
 
 52. **[2026-08-20] "정보 불일치"의 실제 의도가 피싱 사이트 검증(진위 판별)일 가능성 — 미확정, F-4 신설**: 연구자가 "은연중에 듣기로는 피싱 사이트를 검증하거나 진짜와 가짜를 구분하는 용도인가 보더라"고 전함(확정된 지시가 아니라 곁들어 들은 내용임을 명시). 이는 F-3까지의 방향(챗봇 자신의 응답 정확성·보안을 정보 무질서 3유형으로 재해석)과는 초점이 다르며, 오히려 F-1에서 "본 연구와 대상이 다르다"고 판단해 보류했던 이탈리아 연구자 추정 후보(가짜 이미지·가짜 웹사이트 탐지)에 더 가까움. AI가 기존 아키텍처에 접목 가능한 3단계 옵션(저비용: 9번째 공격 카테고리 추가 / 중간: 링크 진위 판별 기능 신설 / 고비용: RAG를 외부 진위 검증 레이어로 확장)을 아이디에이션함. 두 해석(챗봇 응답 정확성 vs 외부 사이트 진위 판별)이 서로 다른 문제라 결과에 미치는 영향이 크므로, 다음 지도교수 미팅에서 실제 의도를 먼저 확인할 것을 권고함.
 
+53. **[2026-08-20] "정보 불일치 × 챗봇" 2차 문헌 조사 — F-1-부록 신설**: 연구자 지시("연결할 수 있는 논문 리스트업 + 우리가 가야할 논문 연구 탐색")에 따라 WebSearch로 2차 조사함(F-3에서 확정한 챗봇 내부 범위, 허위사실 동조·RAG 컨텍스트 오염 카테고리 기준). 5개 그룹(A. Information Disorder×생성형AI 직접 연결, B. Sycophancy 공격/방어, C. RAG Faithfulness/Groundedness 심판관, D. RAG 포이즈닝 방어, E. 실무 동기부여 사례)으로 정리하고, 방법론적으로 가장 가까운 두 갈래 — B의 sycophancy 공격·방어 평가 논문(arXiv:2406.03827, 우리 자가 치유 루프와 구조 유사)과 C의 FaithJudge류 RAG faithfulness 벤치마킹(arXiv:2505.04847, 우리 judge.py와 개념적으로 유사) — 을 §4.1.1/§3.6 인용 후보 1순위로 권고함. 전부 WebSearch 스니펫 기반이라 원문 재확인 필요.
+
 ## 🗂 연구 후속 과제 통합 목록 (2026-08-12 기준, 작업용, 제출 전 삭제)
 
 위 결정 로그 곳곳에 흩어져 있던 "다음에 확인/결정/수행 필요" 항목들을 한 곳에 재취합한 목록이다. 완료되면 취소선 처리하고 해당 결정 로그 항목 번호를 남긴다.
@@ -212,6 +214,34 @@
 - **원류 프레임워크**: Claire Wardle & Hossein Derakhshan, *"Information Disorder: Toward an Interdisciplinary Framework for Research and Policy Making"*, Council of Europe, 2017. "Information Disorder"라는 용어 자체의 출처. Misinformation(의도 없는 오류)·Disinformation(의도적 조작)·Malinformation(사실이나 해악 목적)의 3분류 + (창작→제작→유포) 생애주기 + (행위자·메시지·해석자) 3요소로 구성된 분석 틀.
 - **전사에서 언급된 "이탈리아 연구자" 추정 후보(미확정)**: 피사대학교(Bondielli, Dell'Oglio, Lenci, Marcelloni, Passaro 등)의 이탈리아어 멀티모달(텍스트+이미지) 가짜뉴스 탐지 연구, 이탈리아 국가 사이버보안 컨소시엄 SERICS의 "Spoke 2 — Disinformazione e Fake News"(딥페이크·미디어 위조 탐지, PI: Tesconi/CNR·De Nicola/IMT·Silvestri/Roma1·Loia/Salerno). ⚠️ 원 개념은 가짜 이미지·가짜 웹사이트(미디어 위조) 탐지가 주제라 본 연구(챗봇 텍스트 응답의 정보 불일치)와 대상이 다름 — 지도교수가 실제로 어느 연구자를 지칭했는지 확인 필요.
 - **AI가 자체적으로 추가 발굴한 인접 계보(더 직접적으로 관련)**: 2026년 현재 LLM 챗봇 분야에서 "RAG + faithfulness/groundedness judge가 응답을 게이트하는" 구조가 표준 패턴으로 자리잡음(응답이 판정 기준 미달이면 재검색·거부) — 이는 본 연구의 심판관(judge.py) 구조와 개념적으로 근접함. Wardle-Derakhshan을 "정보 불일치"라는 상위 개념·용어의 뿌리로 인용하되, 기술적 근거는 이 hallucination/faithfulness judge 문헌 계보에서 가져오는 이중 인용 전략을 제안함(§F-2 유불리 판단 참조).
+
+**F-1-부록. "정보 불일치 × 챗봇" 2차 문헌 조사 [2026-08-20, 결정 로그 항목 53]**
+
+> 연구자 지시("정보 불일치라는 개념과 우리랑 엮을 수 있는 논문들을 리스트업하자. 그리고 우리가 가야할 논문 연구를 좀 찾아보자")에 따라 WebSearch로 2차 조사함. F-3에서 확정한 범위(챗봇 내부, 허위사실 동조·RAG 컨텍스트 오염 카테고리)에 맞춰 검색함. ⚠️ 전부 WebSearch 스니펫 기반이며 저자명·정확한 서지정보는 원문 재확인 필요(Regmi & Saravanan 건과 동일한 수준의 확인도).
+
+- **A. Information Disorder × 생성형 AI 직접 연결 (원류 프레임워크를 LLM에 적용한 선례)**
+  - JMIR Infodemiology (2025). "Viewpoint on the Intersection Among Health Information, Misinformation, and Generative AI Technologies." — Wardle-Derakhshan류 정보 무질서 개념을 생성형 AI 맥락에 적용한 관점 논문. "용어만 차용"이 아니라 이런 적용 사례가 이미 있다는 근거로 인용 가능.
+  - arXiv:2505.21608 (2025). "How does Misinformation Affect Large Language Model Behaviors and Preferences?"
+
+- **B. 허위사실 동조(Sycophancy) — Disinformation 대응 카테고리 직결, 가장 직접적인 방법론적 참고 후보**
+  - arXiv:2406.03827. "Chaos with Keywords: Exposing Large Language Models' Sycophantic Hallucination to Misleading Keywords and Evaluating Defense Strategies." — 공격(오도하는 키워드)과 방어 전략 평가까지 함께 다뤄 본 연구의 자가 치유 루프(공격→채점→방어 강화)와 구조가 가장 유사함. **§4.1.1/§5.4의 방법론 인용 후보 1순위.**
+  - ACL Findings EMNLP 2025. "Challenging the Evaluator: LLM Sycophancy Under User Rebuttal." — 사용자가 재반박할 때 심판관/평가자 LLM 자체가 아첨(sycophancy)하는 문제 — 본 연구의 심판관 신뢰성 검증(§3.6)과 직결.
+  - PMC (2025). "When helpfulness backfires: LLMs and the risk of false medical information due to sycophantic behavior." — 의료 도메인 사례지만 "유통업 챗봇"과 동일하게 도메인 특화 서비스에서의 사용자 동조 위험을 다룸 — 도메인 비교 논거로 활용 가능.
+
+- **C. RAG Faithfulness/Groundedness — Misinformation 대응 카테고리 직결**
+  - arXiv:2505.04847 / EMNLP Industry 2025. "Benchmarking LLM Faithfulness in RAG with Evolving Leaderboards" (FaithJudge). — LLM-as-a-judge로 RAG 충실성(faithfulness)을 평가하는 리더보드 — 본 연구의 judge.py 설계와 개념적으로 가장 가까운 벤치마킹 방법론. **§3.6(심판관 신뢰성)의 비교 대상 1순위.**
+  - arXiv:2504.15205. "Support Evaluation for the TREC 2024 RAG Track: Comparing Human versus LLM Judges." — human vs LLM judge 비교, 본 연구의 심판관 신뢰성 논증에 참고 가능.
+
+- **D. RAG 컨텍스트 오염(포이즈닝) 방어 — RAG 컨텍스트 오염 카테고리 직결**
+  - arXiv:2508.02835. "Defending Against Knowledge Poisoning Attacks During Retrieval-Augmented Generation."
+  - arXiv:2411.18948. "RevPRAG: Revealing Poisoning Attacks in Retrieval-Augmented Generation through LLM Activation Analysis."
+  - "TrustRAG"(plug-and-play 필터링 방어, 정확한 서지정보 미확인) — 언급만 확인, 원문 검색 필요.
+
+- **E. 실무/동기부여 인용 후보 (서론)**
+  - Air Canada 챗봇 판례 — 챗봇의 오정보에 기업이 법적 책임을 진 실제 사례. 서론의 문제의식("조직 내 정보 오류가 실제 피해로 이어진다")을 뒷받침하는 실사례로 적합. 정확한 판례 인용(사건명·연도)은 별도 확인 필요.
+  - "MIT 2025 연구 — AI 모델이 틀린 정보를 전달할 때 오히려 34% 더 확신에 찬 언어를 쓴다"는 통계 — 언론 보도 형태로만 확인됨, 원 논문 특정 안 됨(원문 확인 전 인용 보류 권장).
+
+**권고 — "우리가 가야 할 연구"**: 방법론적으로 가장 가까운 두 갈래는 **B의 sycophancy 공격·방어 평가 논문**(우리 자가 치유 루프의 구조와 흡사)과 **C의 FaithJudge류 RAG faithfulness 벤치마킹**(우리 judge.py 설계와 개념적으로 유사)이다. 이 둘을 각각 §4.1.1(방법론)과 §3.6(심판관 신뢰성)에 명시적으로 대비 인용하면, "정보 무질서 저항력"이라는 목표점이 문헌적으로도 뒷받침된다.
 
 **F-2. 유불리 판단(AI 의견, 연구자 확인 필요)**
 
