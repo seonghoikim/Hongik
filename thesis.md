@@ -143,6 +143,8 @@
 
 53. **[2026-08-20] "정보 불일치 × 챗봇" 2차 문헌 조사 — F-1-부록 신설**: 연구자 지시("연결할 수 있는 논문 리스트업 + 우리가 가야할 논문 연구 탐색")에 따라 WebSearch로 2차 조사함(F-3에서 확정한 챗봇 내부 범위, 허위사실 동조·RAG 컨텍스트 오염 카테고리 기준). 5개 그룹(A. Information Disorder×생성형AI 직접 연결, B. Sycophancy 공격/방어, C. RAG Faithfulness/Groundedness 심판관, D. RAG 포이즈닝 방어, E. 실무 동기부여 사례)으로 정리하고, 방법론적으로 가장 가까운 두 갈래 — B의 sycophancy 공격·방어 평가 논문(arXiv:2406.03827, 우리 자가 치유 루프와 구조 유사)과 C의 FaithJudge류 RAG faithfulness 벤치마킹(arXiv:2505.04847, 우리 judge.py와 개념적으로 유사) — 을 §4.1.1/§3.6 인용 후보 1순위로 권고함. 전부 WebSearch 스니펫 기반이라 원문 재확인 필요.
 
+54. **[2026-08-20] 1순위 인용 후보 2건의 저자 전체 명단 확인**: 항목 53에서 1순위로 추천한 두 논문(Chaos with Keywords, FaithJudge)의 arXiv 원문 페이지가 egress 차단으로 직접 열람은 안 됐으나, 각각 별도 WebSearch 질의로 재조회해 저자 전체 명단(Aswin RRV, Tyagi, N., Uddin, M. N., Varshney, N., Baral, C. / Tamber, M. S., Bao, F. S., Xu, C., Luo, G., Kazi, S., Bae, M., Li, M., Mendelevitch, O., Qu, R., Lin, J.)과 정확한 게재처(Findings of ACL 2024 / EMNLP 2025 Industry Track)를 확인함. F-1-부록에 정식 서지 형태로 갱신 반영.
+
 ## 🗂 연구 후속 과제 통합 목록 (2026-08-12 기준, 작업용, 제출 전 삭제)
 
 위 결정 로그 곳곳에 흩어져 있던 "다음에 확인/결정/수행 필요" 항목들을 한 곳에 재취합한 목록이다. 완료되면 취소선 처리하고 해당 결정 로그 항목 번호를 남긴다.
@@ -217,19 +219,19 @@
 
 **F-1-부록. "정보 불일치 × 챗봇" 2차 문헌 조사 [2026-08-20, 결정 로그 항목 53]**
 
-> 연구자 지시("정보 불일치라는 개념과 우리랑 엮을 수 있는 논문들을 리스트업하자. 그리고 우리가 가야할 논문 연구를 좀 찾아보자")에 따라 WebSearch로 2차 조사함. F-3에서 확정한 범위(챗봇 내부, 허위사실 동조·RAG 컨텍스트 오염 카테고리)에 맞춰 검색함. ⚠️ 전부 WebSearch 스니펫 기반이며 저자명·정확한 서지정보는 원문 재확인 필요(Regmi & Saravanan 건과 동일한 수준의 확인도).
+> 연구자 지시("정보 불일치라는 개념과 우리랑 엮을 수 있는 논문들을 리스트업하자. 그리고 우리가 가야할 논문 연구를 좀 찾아보자")에 따라 WebSearch로 2차 조사함. F-3에서 확정한 범위(챗봇 내부, 허위사실 동조·RAG 컨텍스트 오염 카테고리)에 맞춰 검색함. ⚠️ arXiv 원문 사이트(arxiv.org) 접속은 이 환경에서 egress 차단이라 WebFetch로 직접 열람하지 못함 — 아래 B·C 그룹의 1순위 추천 2건(Chaos with Keywords, FaithJudge)은 서로 다른 WebSearch 질의 2회에서 저자 전체 명단이 일관되게 나와 확신도를 높여 표기했고, 그 외 항목은 여전히 스니펫 기반이라 원문 재확인 필요.
 
 - **A. Information Disorder × 생성형 AI 직접 연결 (원류 프레임워크를 LLM에 적용한 선례)**
   - JMIR Infodemiology (2025). "Viewpoint on the Intersection Among Health Information, Misinformation, and Generative AI Technologies." — Wardle-Derakhshan류 정보 무질서 개념을 생성형 AI 맥락에 적용한 관점 논문. "용어만 차용"이 아니라 이런 적용 사례가 이미 있다는 근거로 인용 가능.
   - arXiv:2505.21608 (2025). "How does Misinformation Affect Large Language Model Behaviors and Preferences?"
 
 - **B. 허위사실 동조(Sycophancy) — Disinformation 대응 카테고리 직결, 가장 직접적인 방법론적 참고 후보**
-  - arXiv:2406.03827. "Chaos with Keywords: Exposing Large Language Models' Sycophantic Hallucination to Misleading Keywords and Evaluating Defense Strategies." — 공격(오도하는 키워드)과 방어 전략 평가까지 함께 다뤄 본 연구의 자가 치유 루프(공격→채점→방어 강화)와 구조가 가장 유사함. **§4.1.1/§5.4의 방법론 인용 후보 1순위.**
+  - **[2026-08-20 원문 서지정보 확인]** Aswin RRV, Tyagi, N., Uddin, M. N., Varshney, N., & Baral, C. (2024). Chaos with Keywords: Exposing Large Language Models' Sycophantic Hallucination to Misleading Keywords and Evaluating Defense Strategies. *Findings of the Association for Computational Linguistics: ACL 2024*. arXiv:2406.03827. — 공격(오도하는 키워드)과 방어 전략 평가까지 함께 다뤄 본 연구의 자가 치유 루프(공격→채점→방어 강화)와 구조가 가장 유사함. **§4.1.1/§5.4의 방법론 인용 후보 1순위.**
   - ACL Findings EMNLP 2025. "Challenging the Evaluator: LLM Sycophancy Under User Rebuttal." — 사용자가 재반박할 때 심판관/평가자 LLM 자체가 아첨(sycophancy)하는 문제 — 본 연구의 심판관 신뢰성 검증(§3.6)과 직결.
   - PMC (2025). "When helpfulness backfires: LLMs and the risk of false medical information due to sycophantic behavior." — 의료 도메인 사례지만 "유통업 챗봇"과 동일하게 도메인 특화 서비스에서의 사용자 동조 위험을 다룸 — 도메인 비교 논거로 활용 가능.
 
 - **C. RAG Faithfulness/Groundedness — Misinformation 대응 카테고리 직결**
-  - arXiv:2505.04847 / EMNLP Industry 2025. "Benchmarking LLM Faithfulness in RAG with Evolving Leaderboards" (FaithJudge). — LLM-as-a-judge로 RAG 충실성(faithfulness)을 평가하는 리더보드 — 본 연구의 judge.py 설계와 개념적으로 가장 가까운 벤치마킹 방법론. **§3.6(심판관 신뢰성)의 비교 대상 1순위.**
+  - **[2026-08-20 원문 서지정보 확인]** Tamber, M. S., Bao, F. S., Xu, C., Luo, G., Kazi, S., Bae, M., Li, M., Mendelevitch, O., Qu, R., & Lin, J. (2025). Benchmarking LLM Faithfulness in RAG with Evolving Leaderboards (FaithJudge). *Proceedings of EMNLP 2025 (Industry Track)*, aclanthology.org/2025.emnlp-industry.54. arXiv:2505.04847. — LLM-as-a-judge로 RAG 충실성(faithfulness)을 평가하는 리더보드 — 본 연구의 judge.py 설계와 개념적으로 가장 가까운 벤치마킹 방법론. **§3.6(심판관 신뢰성)의 비교 대상 1순위.**
   - arXiv:2504.15205. "Support Evaluation for the TREC 2024 RAG Track: Comparing Human versus LLM Judges." — human vs LLM judge 비교, 본 연구의 심판관 신뢰성 논증에 참고 가능.
 
 - **D. RAG 컨텍스트 오염(포이즈닝) 방어 — RAG 컨텍스트 오염 카테고리 직결**
