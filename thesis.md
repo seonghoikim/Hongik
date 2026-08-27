@@ -145,6 +145,8 @@
 
 54. **[2026-08-20] 1순위 인용 후보 2건의 저자 전체 명단 확인**: 항목 53에서 1순위로 추천한 두 논문(Chaos with Keywords, FaithJudge)의 arXiv 원문 페이지가 egress 차단으로 직접 열람은 안 됐으나, 각각 별도 WebSearch 질의로 재조회해 저자 전체 명단(Aswin RRV, Tyagi, N., Uddin, M. N., Varshney, N., Baral, C. / Tamber, M. S., Bao, F. S., Xu, C., Luo, G., Kazi, S., Bae, M., Li, M., Mendelevitch, O., Qu, R., Lin, J.)과 정확한 게재처(Findings of ACL 2024 / EMNLP 2025 Industry Track)를 확인함. F-1-부록에 정식 서지 형태로 갱신 반영.
 
+55. **[2026-08-20] Wardle & Derakhshan(2017) 원문 확보 및 확인 (pp.20-29)**: 연구자가 Council of Europe 보고서 원문을 이미지(pp.20-29, "Part 1: Conceptual Framework")로 제공함(PDF 업로드가 계속 실패해 관련 페이지만 잘라 이미지로 재전송). 원문 확인 결과 우리가 이미 쓰던 3분류·3단계·3요소 정의가 정확했음을 재확인했고, 추가로 다섯 가지를 발견함: (1) 저자 스스로 Mal-information은 부차적으로 다루며 Marwick & Lewis(2017, Data & Society) "Media Manipulation and Disinformation Online"을 권장 문헌으로 지목 — 우리의 개인정보 유출 카테고리↔Malinformation 매핑을 보강하려면 이 문헌도 확보 필요, (2) "imposter content"(공식 브랜드·인물 사칭) 개념이 우리 "사칭" 카테고리와 정확히 대응, (3) 2017 프랑스 대선 마크롱 이메일 유출 실사례가 우리 개인정보 유출 카테고리와 구조적으로 동일한 패턴(진짜 정보를 유출해 해악을 끼침), (4) Agent 동기 4분류(Financial/Political/Social/Psychological)를 공격 카테고리 서술에 참고 가능, (5) Agent·Message·Interpreter 축 태깅(Figure 7-8)이 우리가 이미 시도했다 기각한 5W1H 축 태깅(§4.1.2)과 개념적으로 유사한 선행 사례 — §4.1.2 논의에 관련 문헌으로 언급 가능. thesis.md F-1에 정식 서지·페이지 인용과 함께 반영함.
+
 ## 🗂 연구 후속 과제 통합 목록 (2026-08-12 기준, 작업용, 제출 전 삭제)
 
 위 결정 로그 곳곳에 흩어져 있던 "다음에 확인/결정/수행 필요" 항목들을 한 곳에 재취합한 목록이다. 완료되면 취소선 처리하고 해당 결정 로그 항목 번호를 남긴다.
@@ -213,7 +215,15 @@
 
 > 연구자 지시("논문 한번 찾아봐. 그리고 정리해서 내게 보고해")에 따라 WebSearch로 1차 조사함. 지도교수가 별도로 제시할 선행연구와 교차 검토가 아직 필요하며, 아래는 AI가 독자적으로 찾은 후보임을 명시한다.
 
-- **원류 프레임워크**: Claire Wardle & Hossein Derakhshan, *"Information Disorder: Toward an Interdisciplinary Framework for Research and Policy Making"*, Council of Europe, 2017. "Information Disorder"라는 용어 자체의 출처. Misinformation(의도 없는 오류)·Disinformation(의도적 조작)·Malinformation(사실이나 해악 목적)의 3분류 + (창작→제작→유포) 생애주기 + (행위자·메시지·해석자) 3요소로 구성된 분석 틀.
+- **원류 프레임워크**: Wardle, C., & Derakhshan, H. (2017). *Information Disorder: Toward an Interdisciplinary Framework for Research and Policy Making*. Council of Europe report DGI(2017)09. "Information Disorder"라는 용어 자체의 출처. Dis-information(허위 + 해악 의도)·Mis-information(허위 + 해악 의도 없음)·Mal-information(사실 + 해악 목적)의 3분류 + (Creation→Production→Distribution) 3단계 + (Agent·Message·Interpreter) 3요소로 구성된 분석 틀.
+
+  > ⚠️ **[2026-08-20 원문 20~29p 확인, 결정 로그 항목 55]** 연구자가 이 보고서 원문(pp.20-29, "Part 1: Conceptual Framework")을 이미지로 제공해 직접 확인함. 아래는 우리 매핑에 실제로 도움이 되는 세부 내용.
+  > - **저자 스스로 Mal-information을 부차적으로 다룸**: "In this report, our primary focus is mis- and dis-information... [Mal-information에 대해서는] there is not space in this report to consider those as well. The research institute Data & Society is doing particularly good work on mal-information and we would recommend reading their report *Media Manipulation and Disinformation Online* [Marwick & Lewis, 2017]" (p.22). 즉 우리가 "개인정보 유출·가격 프로빙" 카테고리를 Malinformation에 매핑할 때, Wardle-Derakhshan 원문만으로는 근거가 얕고 Marwick & Lewis(2017, Data & Society)를 함께 인용하는 것이 더 방어 가능함 — 추가로 확보할 문헌 후보.
+  > - **"Imposter content"(사칭·공식 브랜드 도용) 개념이 우리 "사칭" 카테고리와 정확히 대응**: "Is the message 'imposter content', i.e. posing as an official source? The message may use official branding (e.g., logos) unofficially, or it may steal the name or image of an individual... in order to appear credible" (p.27, Message의 5가지 질문 중 4번째).
+  > - **실사례가 우리 Malinformation 매핑을 뒷받침**: 2017년 프랑스 대선 당시 마크롱 캠프 이메일 유출 사례를 Mal-information의 예시로 듦 — "the information contained in the emails was real... by releasing private information into the public sphere minutes before the media blackout... the leak was designed to cause maximum harm" (p.21-22). 우리 연구의 "개인정보 유출" 카테고리(진짜 정보를 유출해 해를 끼침)와 구조적으로 동일한 패턴.
+  > - **Agent의 4가지 동기 분류(Financial/Political/Social/Psychological, p.26)**: 공격자 동기를 세분화하는 축으로, 필요시 우리 8개 공격 카테고리의 "왜 이 공격을 하는가" 서술에 참고 가능.
+  > - **Agent·Message·Interpreter 축으로 사례를 표로 태깅하는 방식(Figure 7-8, p.28-29)**: 우리가 이미 시도했던 5W1H 축 태깅(§4.1.2, 가설 기각됨, §5.3.10)과 개념적으로 유사한 선행 시도 — 우리 가설이 기각된 것과 원 프레임워크의 태깅 방식을 대비해 서술하면 §4.1.2 논의에 참고할 만한 관련 문헌이 됨(단, 되살리자는 것은 아니고 "이런 유사 시도가 이미 있었다"는 문헌적 위치 확인용).
+  > - **3단계가 순환 구조임을 저자도 언급**: "the interpreter can become the next 'agent'... the three elements of information disorder should be considered parts of a potential never-ending cycle" (p.28) — 우리 자가 치유 "폐쇄 루프"와 순환 구조라는 점에서 은유적으로 공명하는 지점(직접 인용보다는 서술상 비유로만 활용 권장).
 - **전사에서 언급된 "이탈리아 연구자" 추정 후보(미확정)**: 피사대학교(Bondielli, Dell'Oglio, Lenci, Marcelloni, Passaro 등)의 이탈리아어 멀티모달(텍스트+이미지) 가짜뉴스 탐지 연구, 이탈리아 국가 사이버보안 컨소시엄 SERICS의 "Spoke 2 — Disinformazione e Fake News"(딥페이크·미디어 위조 탐지, PI: Tesconi/CNR·De Nicola/IMT·Silvestri/Roma1·Loia/Salerno). ⚠️ 원 개념은 가짜 이미지·가짜 웹사이트(미디어 위조) 탐지가 주제라 본 연구(챗봇 텍스트 응답의 정보 불일치)와 대상이 다름 — 지도교수가 실제로 어느 연구자를 지칭했는지 확인 필요.
 - **AI가 자체적으로 추가 발굴한 인접 계보(더 직접적으로 관련)**: 2026년 현재 LLM 챗봇 분야에서 "RAG + faithfulness/groundedness judge가 응답을 게이트하는" 구조가 표준 패턴으로 자리잡음(응답이 판정 기준 미달이면 재검색·거부) — 이는 본 연구의 심판관(judge.py) 구조와 개념적으로 근접함. Wardle-Derakhshan을 "정보 불일치"라는 상위 개념·용어의 뿌리로 인용하되, 기술적 근거는 이 hallucination/faithfulness judge 문헌 계보에서 가져오는 이중 인용 전략을 제안함(§F-2 유불리 판단 참조).
 
