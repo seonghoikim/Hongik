@@ -165,6 +165,8 @@
 
 63. **[2026-08-27] §2 관련 연구를 정보 불일치성 프레이밍으로 재작성**: F.6 재작성 순서의 세 번째 단계. §2.2(무상태 평가/LLM-as-a-Judge)에 FaithJudge[12] 관련 연구 문장 추가(상세 비교는 §3.6 예고). §2.3(자동화 레드티밍/자가 치유)에 Chaos with Keywords[11] 관련 연구 문장 추가(상세 비교는 §4.1.1 예고) — 허위사실 동조 카테고리가 sycophancy와 직결된다는 논거. §2.5에 신규 항목 **⑧ Wardle & Derakhshan[10]** 추가 — 이론적 뿌리이지 직접 적용이 아니라는 점을 세 가지 조치(용어 코인·확산 재정의·4/8 스코핑)로 논증하고, Marwick & Lewis 채택 보류 경위(결정 로그 항목 55·56)도 요약 인용함. §1.1에서 "§2.5-⑦"로 잘못 걸려 있던 상호참조를 "§2.5-⑧"로 정정.
 
+64. **[2026-08-27] F.6 TODO 항목 1(3유형 재집계 스크립트) 완료**: `scripts/aggregate_by_disorderness_type.py` 작성. 8개 카테고리 원자료(healing_rounds/held_out/adaptive_*/cross_model, relevel4tier 파일까지 전부 흡수)를 건드리지 않고, `impersonation`→Disinformation·`misinformation`→Misinformation·`metadata_leak`/`pii_leak`→Malinformation·나머지 4개(encoding_bypass·tone_gaslighting·cross_product_leak·price_probing)→"supplementary"로만 재라벨링해 등급 분포를 재집계한다. `data/results/*.json` 전체(15개 파일, `pilot_5w1h_pool.json`은 채점 전 원시 풀이라 자동 스킵)에 대해 크래시 없이 동작함을 확인했고, 적응형 재공격 시나리오(`category="adaptive"`, 8개 카테고리 밖)는 의도적 제외로 명시 처리함. 9차 파일럿 단일 실행(`experiment_real_20260804_102353.json` + `relevel4tier_real_20260804_102353.json`)에 대한 예시 출력: Disinformation 3tier 45건(PASS 62.2%·WARNING 20.0%·FAIL 17.8%), Misinformation 3tier 45건(PASS 73.3%·WARNING 26.7%), Malinformation 3tier 90건(PASS 80.0%·WARNING 18.9%·FAIL 1.1%) — 전체 라운드 합산치라 §5.3에 실제로 쓸 표는 특정 라운드(예: v_final)로 한정해 별도로 뽑아야 함(후속 작업). 이 항목은 순수 집계 도구 작성까지이며, §5.3 결과 문단에 실제 표로 옮기는 것은 F.6의 별도 TODO로 유지.
+
 ## 🗂 연구 후속 과제 통합 목록 (2026-08-12 기준, 작업용, 제출 전 삭제)
 
 위 결정 로그 곳곳에 흩어져 있던 "다음에 확인/결정/수행 필요" 항목들을 한 곳에 재취합한 목록이다. 완료되면 취소선 처리하고 해당 결정 로그 항목 번호를 남긴다.
@@ -229,7 +231,7 @@
 4. "정보 불일치(Information Disorder)" 메인 논문 — **[2026-08-14] 선행연구 1차 조사 완료**(아래 신설 소절 참조). ~~아직 범위·목차·기존 자가 치유 논문과의 관계(완전히 별개인지, 자가 치유 메커니즘을 하위 구성요소로 재사용하는지)는 미확정~~ → **[2026-08-20] 해소됨(결정 로그 항목 51).** 지도교수가 강릉 논문을 "선행 연구 발표"로 언급하셨다는 연구자 전언에 따라, **완전히 별개의 새 논문이 아니라 기존 자가 치유 메커니즘을 Information Disorder 프레임워크로 재프레이밍·이론적 근거 보강하는 확장** 방향으로 확정. F-2의 "용어만 차용" 위험은 §F-3의 세 가지 구조적 대응(3분류 매핑·생애주기 개입 지점·확산성 반박)으로 완화 시도.
 5. 두 논문 트랙의 결정 로그·TODO를 이후 지금처럼 하나의 thesis.md에 계속 합쳐 관리할지, 별도 파일로 분리할지 결정 필요.
 6. **[2026-08-27 신설] 제목 제안 2(적극)로 갈 경우 필요한 작업 목록** — 지도교수 브리핑에서 확정되면 착수. 전부 새 실험이 아니라 기존 raw 데이터 재집계·글쓰기 작업임(연구자 확인: "결과 수치 자체는 안 바뀌고, 다른 기준으로 재집계하는 것뿐"):
-   - [ ] 기존 `data/results/experiment_real_*.json`을 8개 카테고리가 아니라 Mis/Dis/Malinformation 3유형 기준으로 재집계하는 분석 스크립트 작성 (원자료·수치 변경 없음, 새 집계 뷰만 추가).
+   - [x] **[2026-08-27 완료]** 기존 `data/results/experiment_real_*.json`을 8개 카테고리가 아니라 Mis/Dis/Malinformation 3유형 기준으로 재집계하는 분석 스크립트 작성 — `scripts/aggregate_by_disorderness_type.py`(원자료·수치 변경 없음, 새 집계 뷰만 추가). §5.3 결과 문단에 실제 표로 반영하는 것은 별도 작업으로 남김.
    - [ ] 본문에 범위 한정 서술 추가 — 8개 카테고리 중 정보 무결성과 직접 관련된 카테고리(사칭·허위사실동조·메타데이터유출·개인정보유출)를 핵심 실증으로, encoding_bypass(안 맞음)·tone_gaslighting·cross_product_leak·price_probing(약하게만 맞음)은 보완적 보안 위협으로 명시적으로 구분.
    - [ ] 결과 섹션(§5.3 등)에 3유형별 방어율 표 추가.
    - [ ] §4.1.1(방법론)에 Chaos with Keywords(arXiv:2406.03827), §3.6(심판관 신뢰성)에 FaithJudge(arXiv:2505.04847) 대비 서술 추가.
