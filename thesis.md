@@ -202,6 +202,8 @@
     - **표1 SHIELD 원문 재확인 — 부분 성공**: WebSearch로 재시도해 저자 3인(Nirhoshan Sivaroopan, Kanchana Thilakarathna, Albert Zomaya)을 추가로 확인해 참고문헌 3번에 반영함. 다만 arxiv.org 자체가 이 환경에서 egress 차단(WebFetch 시도, 확인됨)이라 원문 html/pdf 직접 열람은 여전히 불가능하며, 표1의 "일반화/적응형 공격 검증" 항목은 스니펫만으로 확인이 안 돼 "[TODO: 원문 재확인]"을 그대로 유지함 — 지어내지 않고 정직하게 미해결로 남김.
     - 남은 3건(참고문헌 [9] Regmi & Saravanan 원문, Malinformation 추가 학술 근거, 부록 실데이터·작업용 섹션 처리)은 연구자 확인/결정이 필요해 별도로 안내함.
 
+73. **[2026-09-01] 참고문헌 [9] Regmi & Saravanan 원문 확인 완료 (연구자 직접 확인).** 연구자가 Springer 공식 "Cite this paper" 페이지 캡처를 제공함 — 저자명("Regmi, S., Saravanan, S.", 2026), 편저자(D'Arco, P., Zamfiroiu, A.), 수록 총서(Innovative Security Solutions for Information Technology and Communications, SecITC 2025, LNCS vol. 16443, Springer Cham), 출판일(2026-05-01), DOI(10.1007/978-3-032-17443-7_13)가 기존 WebSearch 기반 인용과 정확히 일치함을 확인. 참고문헌 9번 각주를 "제출 전 재확인 권장" 경고에서 "원문 확인 완료"로 갱신하고, 편저자·출판사(Cham) 정보를 인용문 자체에도 보강함. 참고문헌 목록 말미의 일반 경고도 "항목 3(SHIELD)만 미확인 상태로 남음"으로 좁혀 갱신. 이것으로 F.6 이후 발견된 5개 사용자-의존 항목 중 1건 추가 해소 — 남은 2건(Malinformation 추가 학술 근거, 부록 실데이터/작업용 섹션 처리)만 남음.
+
 ## 🗂 연구 후속 과제 통합 목록 (2026-08-12 기준, 작업용, 제출 전 삭제)
 
 위 결정 로그 곳곳에 흩어져 있던 "다음에 확인/결정/수행 필요" 항목들을 한 곳에 재취합한 목록이다. 완료되면 취소선 처리하고 해당 결정 로그 항목 번호를 남긴다.
@@ -1257,14 +1259,14 @@ round_3부터 round_13까지 11개 라운드 동안 준수율이 87.9~93.9% 사�
 6. Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua, M., Petroni, F., & Liang, P. (2024). Lost in the Middle: How Language Models Use Long Contexts. *Transactions of the Association for Computational Linguistics*, 12, 157–173. arXiv:2307.03172.
 7. OWASP Foundation. OWASP Risk Rating Methodology. OWASP Foundation. https://owasp.org/www-community/OWASP_Risk_Rating_Methodology (2026-08-20 접속 확인).
 8. FIRST.Org, Inc. (2023). Common Vulnerability Scoring System version 4.0: Specification Document. Forum of Incident Response and Security Teams (FIRST). https://www.first.org/cvss/v4-0/cvss-v40-specification.pdf
-9. Regmi, S., & Saravanan, S. (2026). Securing LLM-Integrated Chatbots: A Transformer-Based Vulnerability Scanner for Prompt Injection and Jailbreak Detection. In *Innovative Security Solutions for Information Technology and Communications (SecITC 2025, Revised Selected Papers)*, Lecture Notes in Computer Science, vol. 16443. Springer. https://doi.org/10.1007/978-3-032-17443-7_13 — ⚠️ 원문 사이트(Springer/dblp) 접속이 환경 제약으로 차단되어 검색엔진 스니펫으로만 교차 확인함 — 저자 전체 이름·정확한 출판연도는 제출 전 재확인 권장(아래 결정 로그 항목 참조).
+9. Regmi, S., & Saravanan, S. (2026). Securing LLM-Integrated Chatbots: A Transformer-Based Vulnerability Scanner for Prompt Injection and Jailbreak Detection. In D'Arco, P., & Zamfiroiu, A. (eds.), *Innovative Security Solutions for Information Technology and Communications (SecITC 2025, Revised Selected Papers)*, Lecture Notes in Computer Science, vol. 16443. Springer, Cham. https://doi.org/10.1007/978-3-032-17443-7_13 — **[2026-09-01 원문 확인 완료]** 연구자가 Springer 공식 인용 페이지(Cite this paper) 캡처로 저자명("Regmi, S., Saravanan, S.")·편저자(D'Arco, P., Zamfiroiu, A.)·권호(LNCS vol. 16443)·출판일(2026-05-01)·DOI를 직접 대조 확인함 — 기존 WebSearch 기반 정보와 정확히 일치했음. 더 이상 재확인 필요 없음.
 10. Wardle, C., & Derakhshan, H. (2017). *Information Disorder: Toward an Interdisciplinary Framework for Research and Policy Making*. Council of Europe report DGI(2017)09. — 원문 pp.20-29 직접 확인함(결정 로그 항목 55).
 11. Aswin RRV, Tyagi, N., Uddin, M. N., Varshney, N., & Baral, C. (2024). Chaos with Keywords: Exposing Large Language Models' Sycophantic Hallucination to Misleading Keywords and Evaluating Defense Strategies. *Findings of the Association for Computational Linguistics: ACL 2024*. arXiv:2406.03827. — 원문 전체 확인함(결정 로그 항목 54).
 12. Tamber, M. S., Bao, F. S., Xu, C., Luo, G., Kazi, S., Bae, M., Li, M., Mendelevitch, O., Qu, R., & Lin, J. (2025). Benchmarking LLM Faithfulness in RAG with Evolving Leaderboards (FaithJudge). *Proceedings of EMNLP 2025 (Industry Track)*. arXiv:2505.04847. — 원문 전체 확인함(결정 로그 항목 54).
 13. Fowler, J. (2026). Misconfigured AI bot databases leak millions of Sears Home Services customer records. *SC Media* (보고 계기가 된 보안 연구자의 책임 공개 disclosure). 교차 확인: *Cybernews*, *ExpressVPN Blog*, *Beyond Machines*(2026-03) — 여러 독립 매체가 동일 사실관계(3.7M건, "Samantha"/"KAIros" AI 시스템, 이름·주소·이메일·전화번호·통화녹음 노출)를 일관되게 보도함. ⚠️ 학술 문헌이 아닌 보안 저널리즘 보도이므로 인용 성격이 마크롱 사례(원 보고서 저자 자신이 제시한 1차 사례)와 다름을 명시 — F.6 TODO 항목 5, 결정 로그 항목 68 참조.
 14. Shah, S. (HackSage) (2025). How I Hacked an AI Chatbot to Expose Thousands of Customer Records (IDOR + Prompt Injection). *Medium*, 2025-11. ⚠️ 개인 보안 연구자의 취약점 공개(disclosure) 블로그 게시물로, 동료 심사를 거친 학술 문헌이 아님 — 회사명·정확한 피해 규모 등 세부사항은 제출 전 재확인 권장. 공격 기법(IDOR+프롬프트 인젝션으로 타 고객 정보를 캐냄)이 본 연구의 개인정보 유출 유도 카테고리와 구조적으로 가장 근접해 인용함(F.6 TODO 항목 5, 결정 로그 항목 68).
 
-> ⚠️ 제출 전 지도교수/Google Scholar 재확인 권장.
+> ⚠️ **[2026-09-01 갱신]** 항목 9(Regmi & Saravanan)는 연구자가 Springer 공식 페이지로 직접 확인 완료. 항목 3(SHIELD)만 arxiv.org egress 차단으로 원문 미확인 상태로 남음(표1의 "일반화/적응형 공격 검증" 항목) — 제출 전 재확인 권장.
 
 ---
 
