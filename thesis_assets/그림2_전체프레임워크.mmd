@@ -1,0 +1,22 @@
+flowchart TD
+    SRS["① SRS 정의<br/>v(n)"] --> ATTACK["② 적대적 실행<br/>공격 시나리오 생성<br/>(8개 범주 × 카테고리당 N개)"]
+    ATTACK --> UA["유닛 A<br/>입력 가드레일"]
+    UA --> UB["유닛 B<br/>RAG 검색"]
+    UB --> UC["유닛 C<br/>LLM 추론<br/>(SRS+Meta-Rule 반영)"]
+    UC --> UD["유닛 D<br/>출력 가드레일"]
+    UD --> JUDGE["③ 심판관 채점<br/>Action Matrix(4단계)<br/>FULL_DEFENSE / FUNCTIONAL_DEFENSE /<br/>PARTIAL_EXPOSURE / BREACH"]
+    JUDGE --> DECISION{"전원<br/>FULL_DEFENSE?"}
+    DECISION -- "아니오" --> META["④ Meta-Rule 생성<br/>실패 사례 분석"]
+    META --> MERGE["⑤ SRS 병합<br/>v(n+1)"]
+    MERGE -. "루프백 (실패 사례가 더 없을 때까지<br/>또는 라운드 상한까지)" .-> ATTACK
+    DECISION -- "예 (만점 수렴)" --> HELDOUT["헬드아웃 검증"]
+    HELDOUT --> ADAPT["적응형 재공격<br/>(블랙박스/화이트박스)"]
+    ADAPT --> CROSS["교차 모델 검증<br/>(응답만 이종 LLM 2종 교체, 심판관 고정)"]
+    CROSS --> REPORT["최종 방어율 보고"]
+
+    style UA fill:#dce6f1,stroke:#4472c4
+    style UB fill:#dce6f1,stroke:#4472c4
+    style UC fill:#dce6f1,stroke:#4472c4
+    style UD fill:#dce6f1,stroke:#4472c4
+    style JUDGE fill:#fde9d9,stroke:#c0504d,stroke-width:3px
+    style META fill:#fde9d9,stroke:#c0504d,stroke-width:3px

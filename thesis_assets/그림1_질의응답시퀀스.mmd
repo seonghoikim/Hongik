@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant U as 사용자
+    participant A as 유닛 A<br/>입력 가드레일
+    participant B as 유닛 B<br/>RAG 검색·검증
+    participant C as 유닛 C<br/>LLM 추론 엔진
+    participant D as 유닛 D<br/>출력 가드레일
+
+    U->>A: 사용자 입력
+    A->>A: 탈옥/사칭/유해 발언 스캔
+    alt 차단 대상
+        A-->>U: 즉시 차단 응답
+    else 통과
+        A->>B: 정제된 입력 전달
+        B->>B: 내부 지식DB 검색<br/>(외부/오염 데이터 격리)
+        B->>C: 검증된 컨텍스트 + 입력
+        C->>C: SRS 페르소나/Meta-Rules 반영<br/>응답 생성
+        C->>D: 생성된 응답
+        D->>D: 경쟁사 노출·메타데이터 유출·<br/>부적절 단어 최종 점검
+        D-->>U: 최종 응답
+    end
