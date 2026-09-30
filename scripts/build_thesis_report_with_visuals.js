@@ -31,6 +31,16 @@ const LINE_SPACING = 360; // 240 = single; 360 = 150%
 const raw = fs.readFileSync(SRC, "utf-8");
 const lines = raw.split("\n");
 
+// ---------- 목차: docx.js의 동적 TableOfContents 필드는 실제 Word가 한 번 열어서
+// "필드 업데이트"를 실행하기 전까지는 빈 채로 보인다(페이지 번호를 계산할 워드 엔진이
+// 이 스크립트 실행 시점엔 없기 때문). 대신 헤딩을 미리 훑어 정적 목차를 직접 만든다 —
+// 페이지 번호는 못 넣지만(최종 인쇄본에서 Word가 다시 계산), 열자마자 전체 구조가 보인다.
+const tocEntries = [];
+for (const l of lines) {
+  const m = l.match(/^(#{2,4})\s+(.*)$/);
+  if (m) tocEntries.push({ level: m[1].length, text: m[2] });
+}
+
 // ---------- 새로 삽입할 그림 목록 (문서 순서대로) ----------
 // tableTrigger: 표 캡션 줄에 포함된 문자열 -> 그 표가 끝난 직후 삽입
 // lineTrigger : 특정 본문/목록 줄에 포함된 문자열 -> 그 줄 문단이 끝난 직후 삽입
@@ -273,7 +283,17 @@ while (i < lines.length) {
       spacing: { after: 240 },
       children: [new TextRun({ text: "목차", bold: true, size: 30, font: HEADING_FONT })],
     }));
-    children.push(new TableOfContents("목차", { hyperlink: true, headingStyleRange: "1-3" }));
+    tocEntries.forEach((e) => {
+      const indent = { 2: 0, 3: 400, 4: 800 }[e.level];
+      const size = { 2: 24, 3: 22, 4: 20 }[e.level];
+      const bold = e.level === 2;
+      children.push(new Paragraph({
+        indent: { left: indent },
+        spacing: { after: e.level === 2 ? 120 : 80 },
+        children: [new TextRun({ text: e.text, bold, size, font: e.level === 2 ? HEADING_FONT : BODY_FONT })],
+      }));
+    });
+    children.push(new Paragraph({ children: [new PageBreak()] }));
     continue;
   }
 
