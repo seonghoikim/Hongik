@@ -41,12 +41,10 @@ for i, (a, b, c, fc, tc) in enumerate(lv):
     ax.text(x+1.05, 2.35, b, ha="center", color=tc, fontsize=12, fontweight="bold")
     ax.text(x+1.05, 1.6, c, ha="center", va="center", color=tc, fontsize=9, linespacing=1.4)
 arrow(ax, (0.3, 0.7), (9.6, 0.7)); ax.text(0.3, 0.3, "방어 완결성 높음", fontsize=9, color=G1); ax.text(9.6, 0.3, "낮음", ha="right", fontsize=9, color=G1)
-ax.set_title("4단계 보안 심각도 Level 체계 (표 4)", fontsize=13, fontweight="bold", loc="left")
 save(fig, "fig2_severity_levels.png")
 
 # F3. attack taxonomy ----------------------------------------------------
 fig, ax = plt.subplots(figsize=(10, 5.6)); ax.set_xlim(0, 10); ax.set_ylim(0, 8.4); ax.axis("off")
-ax.set_title("공격 유형 8종의 이론적 위치 — 핵심 실증 4종 vs 보완적 위협 4종", fontsize=13, fontweight="bold", loc="left")
 ax.text(0.2, 7.6, "공격 유형 (8종)", fontsize=10, fontweight="bold"); ax.text(4.2, 7.6, "OWASP LLM Top 10", fontsize=10, fontweight="bold"); ax.text(7.6, 7.6, "정보 불일치성 유형", fontsize=10, fontweight="bold")
 rows = [("관리자/시스템 사칭", "LLM01 Prompt Injection", "Disinformation", True),
         ("허위 사실 동조 유도", "LLM09 Misinformation", "Misinformation", True),
@@ -78,7 +76,6 @@ ax.annotate("100% 완전 수렴\n(round 14)", xy=(14, 100), xytext=(11.3, 78), f
 ax.annotate("round 3 최저 63.6%", xy=(3, 63.6), xytext=(3.6, 56), fontsize=9, color=G1, arrowprops=dict(arrowstyle="-|>", color=G2))
 ax.set_ylim(50, 105); ax.set_xlim(0.6, 14.6); ax.set_xticks(range(1, 15))
 ax.set_xlabel("자가 치유 라운드"); ax.set_ylabel("가이드라인 준수율 (%)")
-ax.set_title("라운드별 준수율 추이 — 자가 치유 루프의 수렴 (표 6·8·9)", fontsize=13, fontweight="bold", loc="left")
 ax.legend(frameon=False, loc="lower right", fontsize=9.5)
 save(fig, "fig4_round_compliance.png")
 
@@ -91,7 +88,6 @@ b1 = ax.bar([i-w/2 for i in x], v14, w, color=G1, hatch="///", edgecolor="white"
 b2 = ax.bar([i+w/2 for i in x], vho, w, color=G3, hatch="...", edgecolor=G1, label="헬드아웃 (미학습 문항)")
 for b in list(b1)+list(b2): ax.text(b.get_x()+b.get_width()/2, b.get_height()+1.5, f"{b.get_height():.0f}%" if b.get_height() == 100 else f"{b.get_height():.1f}%", ha="center", fontsize=9.5, fontweight="bold")
 ax.set_xticks(list(x)); ax.set_xticklabels(cats, fontsize=9.5); ax.set_ylim(0, 130); ax.set_ylabel("방어 성공률 (%)")
-ax.set_title("정보 불일치성 유형별 방어 결과 (표 9-부록)", fontsize=13, fontweight="bold", loc="left")
 ax.legend(frameon=False, loc="upper left", ncol=2, bbox_to_anchor=(0.0, 1.0), fontsize=9.5)
 ax.annotate("유일한 FAIL: 자소분리\n인코딩 우회 1건", xy=(3+w/2, 96), xytext=(2.35, 113), fontsize=8.5, ha="center", arrowprops=dict(arrowstyle="-|>", color=G1, lw=1.2))
 save(fig, "fig5_defense_by_type.png")
@@ -109,7 +105,6 @@ for k, (name, vals) in enumerate(data.items()):
 ax.text(1, 112, "p = 0.031 (유의)", ha="center", fontsize=9.5, fontweight="bold")
 ax.text(0, 112, "p = 0.829", ha="center", fontsize=9.5); ax.text(2, 112, "p = 0.230", ha="center", fontsize=9.5)
 ax.set_xticks(range(3)); ax.set_xticklabels(runs, fontsize=9.5); ax.set_ylim(0, 122); ax.set_ylabel("백엔드별 PASS율 (%)")
-ax.set_title("교차 모델 검증 — 벤더별 PASS율 (표 10)", fontsize=13, fontweight="bold", loc="left")
 ax.legend(frameon=False, loc="upper center", ncol=3, bbox_to_anchor=(0.5, -0.22), fontsize=9.5)
 save(fig, "fig6_cross_model.png")
 
@@ -121,13 +116,11 @@ b1 = ax.bar([i-w/2 for i in x], base, w, color=G3, hatch="...", edgecolor=G1, la
 b2 = ax.bar([i+w/2 for i in x], w5, w, color=G1, hatch="///", edgecolor="white", label="5w1h (v2.x)")
 for b in list(b1)+list(b2): ax.text(b.get_x()+b.get_width()/2, b.get_height()+1.2, f"{b.get_height():.1f}", ha="center", fontsize=9)
 ax.set_xticks(list(x)); ax.set_xticklabels(axes_, fontsize=11); ax.set_ylim(0, 66); ax.set_ylabel("FAIL 비율 (%)")
-ax.set_title("5W1H 축별 FAIL 비율 — 가설 기각 (표 12, 10~11차)", fontsize=13, fontweight="bold", loc="left")
 ax.legend(frameon=False, loc="upper right", fontsize=9.5)
 save(fig, "fig7_5w1h_fail.png")
 
 # F8. adaptive threat model ---------------------------------------------
 fig, ax = plt.subplots(figsize=(10, 4.2)); ax.set_xlim(0, 10); ax.set_ylim(0, 4.4); ax.axis("off")
-ax.set_title("적응형 재공격 — 두 가지 위협 모델 (표 14)", fontsize=13, fontweight="bold", loc="left")
 box(ax, 0.2, 1.3, 2.0, 1.4, "v_final\n(방어 완료 SRS)", fc=G1, tc="white", bold=True, fs=10.5)
 box(ax, 3.7, 2.7, 3.2, 1.1, "블랙박스 공격자\nMeta-Rule 존재만 앎", fc="white", fs=10, bold=True)
 box(ax, 3.7, 0.2, 3.2, 1.1, "화이트박스 공격자\nMeta-Rule 전문을 앎", fc=G4, fs=10, bold=True)
