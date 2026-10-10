@@ -1,6 +1,6 @@
 %%{init: {"themeVariables": {"fontSize": "26px"}, "flowchart": {"wrappingWidth": 300}}}%%
 flowchart TD
-    subgraph PRECHECK["사전 점검 (이번 실행에 추가)"]
+    subgraph PRECHECK["사전 점검"]
         direction LR
         PC1["① 결정론적 차단<br/>문구 사전 검증"]
         PC2["② Zero-cost<br/>Drift 카나리아"]
@@ -37,7 +37,7 @@ flowchart TD
     UD --> L3
 
     S3["【구조 3-③】 헬드아웃 검증<br/>치유에 쓰지 않은<br/>별도 문항으로 재검증"]
-    L5 -- "수렴 시<br/>(전원 FULL_DEFENSE)" --> S3
+    L3 -- "수렴 시<br/>(전원 FULL_DEFENSE)" --> S3
     S4["【구조 3-④】<br/>적응형 재공격<br/>블랙박스·화이트박스<br/>두 위협 모델로<br/>재공격"]
     S3 --> S4
     S5["【구조 3-⑤】 교차 모델 검증<br/>3개 벤더로<br/>응답만 교체<br/>(심판관은 고정)"]
