@@ -1,6 +1,6 @@
 %%{init: {"themeVariables": {"fontSize": "26px"}, "flowchart": {"wrappingWidth": 300}}}%%
 flowchart TD
-    subgraph PRECHECK["🔍 사전 점검 (이번 실행에 추가)"]
+    subgraph PRECHECK["사전 점검 (이번 실행에 추가)"]
         direction LR
         PC1["① 결정론적 차단<br/>문구 사전 검증"]
         PC2["② Zero-cost<br/>Drift 카나리아"]
@@ -10,7 +10,7 @@ flowchart TD
     S1["【구조 3-①】<br/>공격 생성<br/>레드팀 LLM이<br/>카테고리별<br/>시나리오 생성"]
     PRECHECK --> S1
 
-    subgraph Z2["🔁 구조 2 — 자가 치유 폐쇄 루프"]
+    subgraph Z2["구조 2 — 자가 치유 폐쇄 루프"]
         direction TB
         L1["① SRS 정의<br/>고객사 페르소나 +<br/>제약 조건"]
         L2["② 적대적 실행<br/>공격 시나리오로<br/>챗봇 응답 생성"]
@@ -20,12 +20,12 @@ flowchart TD
         L3 --> L4
         L5["⑤ SRS 병합<br/>헤더·푸터에<br/>삽입 후 재실행"]
         L4 --> L5
-        LOOP(["⟲ 미수렴 시<br/>②로 돌아가 반복<br/>(라운드 상한까지)"])
+        LOOP(["미수렴 시<br/>②로 돌아가 반복<br/>(라운드 상한까지)"])
         L5 --> LOOP
     end
     S1 --> L1
 
-    subgraph Z1["🧱 구조 1 — 파이프라인 아키텍처 (유닛 A~D)"]
+    subgraph Z1["구조 1 — 파이프라인 아키텍처 (유닛 A~D)"]
         direction LR
         UA["A. 입력 가드레일<br/>명백한 탈옥·사칭·<br/>인코딩 우회만<br/>1차 차단"]
         UB["B. RAG 검색<br/>내부 지식베이스<br/>에서만 관련<br/>정보 조회"]
