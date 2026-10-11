@@ -11,3 +11,6 @@ data/results/raw_calls_*.jsonl
 # 라운드 단위 체크포인트(종합 점검 2026-08-12, F6): 크래시 방어용 임시 파일이며
 # 실행이 정상 종료되면 experiment_*.json에 동일 내용이 이미 포함되어 있다.
 data/results/checkpoint_*.json
+
+# kim-paper-kit 작업용 중간 파일
+_work/

@@ -1,0 +1,25 @@
+# kim-paper-kit 파이썬 의존성. 기능별로 필요한 것만 설치해도 된다.
+# 설치 후 python scripts/check_env.py 로 확인한다.
+# 줄 끝 주석은 pip 가 읽지 않도록 줄 앞에 둔다.
+
+# 공통 (academic_search.py, 참고문헌 DOI 검증)
+requests
+
+# 음성 전사 (transcribe_meeting.py). ffmpeg 실행 파일은 별도 설치
+faster-whisper
+
+# 그림·PDF (paper_style.py, check_figure_print.py, extract_pdf_figures.py, pdf_page_audit.py)
+matplotlib
+pymupdf
+pillow
+
+# HTML 도식 렌더 (render_html_figure.py). 설치 후 한 번: python -m playwright install chromium
+playwright
+
+# PPT 한글 줄바꿈 후처리 (deck_korean_wrap.py)
+python-pptx
+
+# Word COM 조판과 PowerPoint 검수 (word_com_template.py, render_deck.py). Windows 전용
+pywin32
+
+# 참고: Graphviz dot (verify_dot_order.py, 그림 순서 검사)과 Node.js + pptxgenjs (PPT 생성) 는 pip 가 아니라 별도 설치한다.
