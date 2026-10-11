@@ -40,6 +40,7 @@ from hongik_selfheal.attack_generator import generate_full_pool, load_pool, save
 from hongik_selfheal.call_logger import CallLogger  # noqa: E402
 from hongik_selfheal.canary import check_canary_drift, save_canary_baseline  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
+from hongik_selfheal.cost_estimate import HIGH, LOW, estimate_run, format_estimate  # noqa: E402
 from hongik_selfheal.experiment import GRADE_ORDER, run_full_experiment, save_experiment_output  # noqa: E402
 from hongik_selfheal.fake_members import FAKE_MEMBERS, MEMBERS_VERSION, save_members_snapshot  # noqa: E402
 from hongik_selfheal.knowledge_base import KB_VERSION, save_kb_snapshot  # noqa: E402
@@ -138,6 +139,13 @@ def parse_args() -> argparse.Namespace:
         "(입출력 단가 50%%, 2026-10-11). 배치 하나가 끝나야 다음 단계로 가므로 실행 시간은 길어질 수 있다. "
         "Meta-Rule 생성·사전 점검처럼 한 건씩 오는 호출은 일반 API를 쓴다.",
     )
+    parser.add_argument(
+        "--estimate-cost",
+        action="store_true",
+        default=False,
+        help="API를 호출하지 않고 이 설정의 예상 비용만 출력하고 끝냄 (API 키 불필요). "
+        "실측(real) 실행은 이 옵션 없이도 시작할 때 같은 추정치를 먼저 출력한다.",
+    )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
         "--attack-pool-file",
@@ -194,6 +202,23 @@ def main() -> None:
     args = parse_args()
     config = load_config()
     mode = args.mode or ("mock" if config.provider == "mock" else "real")
+
+    if args.estimate_cost or mode == "real":
+        models = {"anthropic": config.anthropic_model, "openai": config.openai_model, "gemini": config.gemini_model}
+        others = tuple(m for p, m in models.items() if p != args.primary_provider)
+        initial = initial_srs_v1() if args.srs_variant == "baseline" else initial_srs_v2_with_5w1h()
+        estimates = [
+            estimate_run(
+                initial, n_per_category=args.n_per_category, max_rounds=args.max_rounds,
+                adaptive_n=args.adaptive_n, n_repeat=args.n_repeat,
+                primary_model=models[args.primary_provider], other_models=others,
+                redteam_model=models[args.redteam_provider], profile=profile,
+            )
+            for profile in (LOW, HIGH)
+        ]
+        print(format_estimate(estimates))
+        if args.estimate_cost:
+            return
 
     run_id = f"{mode}_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}"
     results_dir = Path(__file__).resolve().parent.parent / "data" / "results"
