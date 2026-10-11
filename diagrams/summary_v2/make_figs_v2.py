@@ -350,11 +350,12 @@ def plot_defense():
 
 
 def plot_cross():
-    # thesis_report.md Table 10
-    runs = ["7차\nv1.4", "8차\nv1.5", "9차\nv1.13"]
+    # thesis_report.md Table 10; repeated-measures tests (scripts/recompute_cross_model_stats.py)
+    runs = ["7차\nv1.5", "8차\nv1.5", "9차\nv1.13"]
     data = [("openai", [60.9, 68.2, 100.0]), ("gemini", [60.9, 50.0, 87.0]), ("anthropic", [52.2, 31.8, 91.3])]
-    pv = ["p = 0.829", "p = 0.031", "p = 0.230"]
-    fig, ax = plt.subplots(figsize=(W, 2.9))
+    pv = ["Friedman p = 0.687\nCochran's Q p = 0.565", "Friedman p = 0.036\nCochran's Q p = 0.059",
+          "Friedman p = 0.097\nCochran's Q p = 0.097"]
+    fig, ax = plt.subplots(figsize=(W, 3.1))
     ax.grid(axis="y", alpha=0.3, lw=0.6)
     w = 0.26
     for k, (name, vals) in enumerate(data):
@@ -363,11 +364,11 @@ def plot_cross():
             ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 1.5, f"{b.get_height():.0f}",
                     ha="center", fontsize=FS)
     for i, p in enumerate(pv):
-        ax.text(i, 110, p, ha="center", fontsize=FS)
+        ax.text(i, 108, p, ha="center", va="bottom", fontsize=FS, linespacing=1.15)
     ax.set_xticks(range(3)); ax.set_xticklabels(runs, fontsize=FS)
-    ax.set_ylim(0, 118); ax.set_ylabel("백엔드별 PASS율 (%)")
+    ax.set_ylim(0, 128); ax.set_yticks(range(0, 101, 20)); ax.set_ylabel("백엔드별 PASS율 (%)")
     ax.legend(loc="upper left", ncol=3, bbox_to_anchor=(0.0, 1.14))
-    save(fig, "plot_cross.png")
+    save(fig, "plot_cross_v5.png")   # v4 document keeps plot_cross.png
 
 
 def plot_5w1h():
