@@ -17,11 +17,11 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .attack_generator import AttackScenario, generate_adaptive_attacks
-from .judge import JudgeResult, evaluate_response
+from .judge import JudgeResult, evaluate_response, evaluate_responses
 from .llm_client import LLMClient, LLMRefusalError
 from .meta_rule_generator import FailureCase, generate_meta_rules
 from .srs import SRS
-from .units import _REFUSAL_MESSAGE, run_pipeline, run_pipeline_multi
+from .units import _REFUSAL_MESSAGE, run_pipeline_many
 
 # 4단계 보안 심각도 Level 체계(thesis.md §4.1.1, 2026-08-13 코드 구현 — 결정
 # 로그 항목 37). 기존 3단계(PASS/WARNING/FAIL)를 대체한다: WARNING이 담당하던
@@ -97,22 +97,21 @@ def evaluate_set(
     1~11차와 동일한 단일 시행 동작이다."""
     results: list[ScenarioResult] = []
     ungradable_details: list[dict] = []
-    for scenario in scenarios:
+    # 응답 생성과 채점을 단계별로 모아 보낸다: 배치 클라이언트면 라운드당 응답 배치 1개,
+    # 채점 배치 1개가 된다(2026-10-11 비용 절감). 각 호출은 여전히 독립된 무상태 호출이다.
+    texts = [scenario.text for scenario in scenarios for _ in range(n_repeat)]
+    pipelines = run_pipeline_many(texts, srs, llm_client, temperature=unit_temperature)
+    judged = evaluate_responses(
+        srs.render_for_judge(), [(t, p.final_response) for t, p in zip(texts, pipelines)],
+        llm_client, temperature=judge_temperature,
+    )
+    for s_index, scenario in enumerate(scenarios):
         judge_results: list[JudgeResult] = []
         representative_pipeline = None
-        for _ in range(n_repeat):
-            pipeline_result = run_pipeline(
-                scenario.text, srs, llm_client, temperature=unit_temperature
-            )
-            try:
-                judge_result = evaluate_response(
-                    srs.render_for_judge(),
-                    scenario.text,
-                    pipeline_result.final_response,
-                    llm_client,
-                    temperature=judge_temperature,
-                )
-            except (LLMRefusalError, ValueError) as e:
+        for k in range(s_index * n_repeat, (s_index + 1) * n_repeat):
+            pipeline_result, judge_result = pipelines[k], judged[k]
+            if isinstance(judge_result, Exception):
+                e = judge_result
                 # ValueError: judge output still invalid after one retry (program review 2026-10-11).
                 # 심판관 모델이 재시도 후에도 채점을 거부하는 사례는 (thesis.md
                 # §3.6.3) 이 개별 시행만 건너뛴다 - n_repeat회 중 나머지가 있으면
@@ -347,10 +346,20 @@ def cross_model_verify(
     """
     results: list[CrossModelScenarioResult] = []
     ungradable_details: list[dict] = []
-    for scenario in scenarios:
-        pipeline_results = run_pipeline_multi(
-            scenario.text, srs, target_clients, temperature=unit_temperature
-        )
+    # 백엔드별 응답을 한 번에 만들고, 모든 (문항, 백엔드) 쌍을 한 번에 채점한다(배치 대응).
+    texts = [scenario.text for scenario in scenarios]
+    providers = list(target_clients)
+    per_backend = {
+        p: run_pipeline_many(texts, srs, target_clients[p], temperature=unit_temperature) for p in providers
+    }
+    judged_flat = evaluate_responses(
+        srs.render_for_judge(),
+        [(t, per_backend[p][i].final_response) for i, t in enumerate(texts) for p in providers],
+        judge_client, temperature=judge_temperature,
+    )
+    for s_index, scenario in enumerate(scenarios):
+        pipeline_results = {p: per_backend[p][s_index] for p in providers}
+        judged_row = {p: judged_flat[s_index * len(providers) + j] for j, p in enumerate(providers)}
         backend_responses: dict[str, str] = {}
         backend_scores: dict[str, int] = {}
         backend_grades: dict[str, str] = {}
@@ -359,15 +368,9 @@ def cross_model_verify(
         refusal_error: str | None = None
         refusal_backend: str | None = None
         for provider, pipeline_result in pipeline_results.items():
-            try:
-                judge_result = evaluate_response(
-                    srs.render_for_judge(),
-                    scenario.text,
-                    pipeline_result.final_response,
-                    judge_client,
-                    temperature=judge_temperature,
-                )
-            except (LLMRefusalError, ValueError) as e:
+            judge_result = judged_row[provider]
+            if isinstance(judge_result, Exception):
+                e = judge_result
                 # 세 백엔드 중 하나라도 채점 불가면 그 시나리오 전체를 교차 모델
                 # 비교에서 제외한다 - 일부 백엔드만 점수가 있으면 2/3 비교 자체가
                 # 성립하지 않으므로 (thesis.md §3.6.3).

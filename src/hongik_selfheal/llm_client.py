@@ -80,11 +80,66 @@ def complete_json_with_retry(
         return extract_json(raw)
 
 
+def _complete_many_with_refusal_retry(llm_client: "LLMClient", requests: list[tuple[str, str, float]]) -> list:
+    """complete_with_refusal_retry의 여러 건 버전. 거부된 건만 안내문을 붙여 한 번 더 보낸다."""
+    results = llm_client.complete_many(requests)
+    refused = [i for i, r in enumerate(results) if isinstance(r, LLMRefusalError)]
+    if refused:
+        retried = llm_client.complete_many(
+            [(requests[i][0], requests[i][1] + REFUSAL_RETRY_NOTE, requests[i][2]) for i in refused]
+        )
+        for i, r in zip(refused, retried):
+            results[i] = r
+    return results
+
+
+def complete_json_many(llm_client: "LLMClient", requests: list[tuple[str, str, float]], extract_json) -> list:
+    """complete_json_with_retry의 여러 건 버전. 같은 재시도 규칙을 건별로 적용하되 호출은
+    단계마다 묶어서 보낸다. 각 결과는 파싱된 값이거나 LLMRefusalError/ValueError 객체다."""
+    raws = _complete_many_with_refusal_retry(llm_client, requests)
+    out: list = [None] * len(requests)
+    bad_json: list[int] = []
+    for i, raw in enumerate(raws):
+        if isinstance(raw, Exception):
+            out[i] = raw
+            continue
+        try:
+            out[i] = extract_json(raw)
+        except ValueError:
+            bad_json.append(i)
+    if bad_json:
+        raws = _complete_many_with_refusal_retry(
+            llm_client, [(requests[i][0], requests[i][1] + _JSON_RETRY_NOTE, requests[i][2]) for i in bad_json]
+        )
+        for i, raw in zip(bad_json, raws):
+            if isinstance(raw, Exception):
+                out[i] = raw
+                continue
+            try:
+                out[i] = extract_json(raw)
+            except ValueError as e:
+                out[i] = e
+    return out
+
+
 class LLMClient(ABC):
     @abstractmethod
     def complete(self, system: str, user: str, temperature: float) -> str:
         """system/user 프롬프트로 단일 무상태 호출을 수행하고 텍스트 응답을 반환한다."""
         raise NotImplementedError
+
+    def complete_many(self, requests: list[tuple[str, str, float]]) -> list:
+        """(system, user, temperature) 여러 건을 처리해 요청 순서대로 결과를 돌려준다.
+        각 결과는 응답 텍스트이거나, 그 건만 거부된 경우 LLMRefusalError 객체다.
+        기본 구현은 complete()를 차례로 부른다. 배치를 지원하는 클라이언트는 이를
+        덮어써 한 번에 묶어 보낸다 (2026-10-11 비용 절감)."""
+        out: list = []
+        for system, user, temperature in requests:
+            try:
+                out.append(self.complete(system, user, temperature))
+            except LLMRefusalError as e:
+                out.append(e)
+        return out
 
 
 class OpenAIClient(LLMClient):
@@ -215,12 +270,21 @@ class GeminiClient(LLMClient):
 
 
 class AnthropicClient(LLMClient):
-    def __init__(self, api_key: str, model: str, logger: CallLogger | None = None):
+    """batch=True면 complete_many()가 Message Batches API(입출력 단가 50%)로 묶어 보낸다.
+    단건 complete()는 batch 여부와 무관하게 항상 일반 API를 쓴다 (2026-10-11 비용 절감)."""
+
+    BATCH_POLL_SECONDS = 15.0
+    BATCH_TIMEOUT_SECONDS = 24 * 3600.0
+
+    def __init__(self, api_key: str, model: str, logger: CallLogger | None = None, *, batch: bool = False):
         from anthropic import Anthropic  # lazy import
 
         self._client = Anthropic(api_key=api_key)
         self._model = model
         self._logger = logger
+        self._batch = batch
+        # claude-sonnet-5처럼 temperature를 받지 않는 모델은 첫 거부 이후 생략한다.
+        self._omit_temperature = False
 
     def complete(self, system: str, user: str, temperature: float) -> str:
         role = _infer_role(system)
@@ -238,22 +302,11 @@ class AnthropicClient(LLMClient):
                     latency_ms=(time.monotonic() - started) * 1000, error=str(e),
                 )
             raise
-
-        self._log(
-            role, system, user, text, model_version=response.model,
-            input_tokens=getattr(response.usage, "input_tokens", None),
-            output_tokens=getattr(response.usage, "output_tokens", None),
-            latency_ms=(time.monotonic() - started) * 1000,
-            cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
-            cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
-        )
+        self._log_success(role, system, user, text, response, started)
         return text
 
-    def _call(
-        self, system: str, user: str, temperature: float, *, role: str, started: float,
-        max_tokens: int = 8192, _retry: bool = True,
-    ):
-        kwargs = dict(
+    def _params(self, system: str, user: str, temperature: float, max_tokens: int) -> dict:
+        params = dict(
             model=self._model,
             # 레드팀 생성기가 여러 개의 공격 문장을 JSON 배열로 한 번에 반환할 때
             # 1024토큰으로는 중간에 잘려 JSON 파싱이 깨지는 사례가 있어 여유있게 잡는다.
@@ -268,23 +321,55 @@ class AnthropicClient(LLMClient):
             # 바뀜)하므로, 한 라운드 안에서 반복되는 채점/생성 호출들이 캐시를
             # 적중시킨다. TTL(기본 ephemeral=5분) 내에 다음 호출이 오지 않으면
             # 캐시가 만료돼 재적중하지 못하지만, 판정/생성 호출은 라운드 내에서
-            # 촘촘히 이어지므로 대부분 TTL 안에 든다.
+            # 촘촘히 이어지므로 대부분 TTL 안에 든다. 배치 요청에서는 캐시 적중이
+            # 보장되지 않는다(best-effort).
             system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": user}],
         )
+        if not self._omit_temperature:
+            params["temperature"] = temperature
+        return params
+
+    def _call(
+        self, system: str, user: str, temperature: float, *, role: str, started: float,
+        max_tokens: int = 8192, _retry: bool = True, batch: bool = False,
+    ):
+        params = self._params(system, user, temperature, max_tokens)
         try:
-            response = self._client.messages.create(temperature=temperature, **kwargs)
+            response = self._client.messages.create(**params)
         except Exception as e:
             # 일부 최신 Claude 모델(예: claude-sonnet-5)은 temperature 파라미터
             # 자체를 노출하지 않고 내부적으로 고정한다 ("temperature is deprecated
             # for this model" 400 에러). 이 경우에 한해 파라미터 없이 재시도한다.
-            if "temperature" in str(e).lower() and "deprecated" in str(e).lower():
-                response = self._client.messages.create(**kwargs)
+            if "temperature" in params and "temperature" in str(e).lower() and "deprecated" in str(e).lower():
+                self._omit_temperature = True
+                params.pop("temperature")
+                response = self._client.messages.create(**params)
             else:
                 raise
+        return self._handle_response(
+            response, system, user, temperature, role=role, started=started,
+            max_tokens=max_tokens, _retry=_retry, batch=batch,
+        )
 
+    def _handle_response(
+        self, response, system: str, user: str, temperature: float, *, role: str, started: float,
+        max_tokens: int, _retry: bool, batch: bool,
+    ):
         text_blocks = [b.text for b in response.content if getattr(b, "type", None) == "text"]
         text = "".join(text_blocks)
+
+        def log_failed(error: str) -> None:
+            self._log(
+                role, system, user, "", model_version=response.model,
+                input_tokens=getattr(response.usage, "input_tokens", None),
+                output_tokens=getattr(response.usage, "output_tokens", None),
+                latency_ms=(time.monotonic() - started) * 1000,
+                error=error,
+                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
+                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
+                batch=batch,
+            )
 
         if response.stop_reason == "refusal":
             # 텍스트가 일부(심지어 JSON 중간까지) 나온 뒤 거부로 끊기는 경우도 있어
@@ -293,15 +378,7 @@ class AnthropicClient(LLMClient):
             # F2 정정(종합 점검 2026-08-12): 거부해도 실제로는 토큰을 소모/청구했으므로
             # 여기서 실제 usage로 로깅한다 - 이전에는 예외 처리 경로에서 항상 None으로
             # 기록돼 비용 추정치가 오류/재시도 호출분을 구조적으로 누락하고 있었다.
-            self._log(
-                role, system, user, "", model_version=response.model,
-                input_tokens=getattr(response.usage, "input_tokens", None),
-                output_tokens=getattr(response.usage, "output_tokens", None),
-                latency_ms=(time.monotonic() - started) * 1000,
-                error=f"refusal (partial_text_len={len(text)})",
-                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
-                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
-            )
+            log_failed(f"refusal (partial_text_len={len(text)})")
             raise LLMRefusalError(
                 "Anthropic이 안전성 정책으로 응답을 거부/중단했습니다 "
                 f"(stop_reason='refusal', partial_text_len={len(text)}, usage={response.usage!r})"
@@ -315,15 +392,8 @@ class AnthropicClient(LLMClient):
             # F2 정정: 잘린 이번 시도도 실제로는 토큰을 전부 소모했으므로, 재시도로
             # 넘어가기 전에 이 시도분을 별도 레코드로 로깅해 비용 집계에서 빠지지
             # 않게 한다(이전에는 재시도 성공 시 이 첫 시도의 토큰이 통째로 사라졌다).
-            self._log(
-                role, system, user, "", model_version=response.model,
-                input_tokens=getattr(response.usage, "input_tokens", None),
-                output_tokens=getattr(response.usage, "output_tokens", None),
-                latency_ms=(time.monotonic() - started) * 1000,
-                error=f"max_tokens 소진(텍스트 없음), {max_tokens*2}로 재시도",
-                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
-                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
-            )
+            # 배치 결과의 재시도는 일반 API로 한 건씩 보낸다.
+            log_failed(f"max_tokens 소진(텍스트 없음), {max_tokens*2}로 재시도")
             return self._call(
                 system, user, temperature, role=role, started=started,
                 max_tokens=max_tokens * 2, _retry=False,
@@ -332,15 +402,7 @@ class AnthropicClient(LLMClient):
         if not text:
             # 재시도 후에도 텍스트가 없으면 크래시시키지 않고 LLMRefusalError로
             # 변환해 §3.6.3과 동일하게 "채점/생성 불가"로 정직하게 집계에서 제외한다.
-            self._log(
-                role, system, user, "", model_version=response.model,
-                input_tokens=getattr(response.usage, "input_tokens", None),
-                output_tokens=getattr(response.usage, "output_tokens", None),
-                latency_ms=(time.monotonic() - started) * 1000,
-                error=f"응답에 텍스트 없음 (stop_reason={response.stop_reason!r})",
-                cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
-                cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
-            )
+            log_failed(f"응답에 텍스트 없음 (stop_reason={response.stop_reason!r})")
             raise LLMRefusalError(
                 "Anthropic 응답에 텍스트가 없어 채점/생성이 불가합니다 "
                 f"(stop_reason={response.stop_reason!r}, "
@@ -349,8 +411,64 @@ class AnthropicClient(LLMClient):
             )
         return text, response
 
+    def complete_many(self, requests: list[tuple[str, str, float]]) -> list:
+        if not self._batch or len(requests) < 2:
+            return super().complete_many(requests)
+        started = time.monotonic()
+        batch = self._client.messages.batches.create(requests=[
+            {"custom_id": f"r{i}", "params": self._params(system, user, temperature, 8192)}
+            for i, (system, user, temperature) in enumerate(requests)
+        ])
+        print(f"[anthropic batch] {batch.id}: {len(requests)}건 제출, 완료 대기")
+        while True:
+            status = self._client.messages.batches.retrieve(batch.id)
+            if status.processing_status == "ended":
+                break
+            if time.monotonic() - started > self.BATCH_TIMEOUT_SECONDS:
+                self._client.messages.batches.cancel(batch.id)
+                raise RuntimeError(f"Anthropic 배치 {batch.id}가 제한 시간 안에 끝나지 않아 취소했습니다")
+            time.sleep(self.BATCH_POLL_SECONDS)
+        print(f"[anthropic batch] {batch.id}: 완료 ({time.monotonic() - started:.0f}초)")
+
+        out: list = [None] * len(requests)
+        done = [False] * len(requests)
+        for entry in self._client.messages.batches.results(batch.id):
+            i = int(entry.custom_id[1:])
+            system, user, temperature = requests[i]
+            if entry.result.type != "succeeded":
+                continue                      # errored/expired/canceled -> one-by-one below
+            role = _infer_role(system)
+            try:
+                text, response = self._handle_response(
+                    entry.result.message, system, user, temperature, role=role, started=started,
+                    max_tokens=8192, _retry=True, batch=True,
+                )
+                self._log_success(role, system, user, text, response, started, batch=True)
+                out[i] = text
+            except LLMRefusalError as e:
+                out[i] = e
+            done[i] = True
+        rest = [i for i, ok in enumerate(done) if not ok]
+        if rest:
+            print(f"[anthropic batch] {batch.id}: 실패·만료 {len(rest)}건은 일반 API로 다시 보냄")
+            for i, r in zip(rest, super().complete_many([requests[i] for i in rest])):
+                out[i] = r
+        return out
+
+    def _log_success(self, role, system, user, text, response, started, *, batch=False):
+        self._log(
+            role, system, user, text, model_version=response.model,
+            input_tokens=getattr(response.usage, "input_tokens", None),
+            output_tokens=getattr(response.usage, "output_tokens", None),
+            latency_ms=(time.monotonic() - started) * 1000,
+            cache_creation_input_tokens=getattr(response.usage, "cache_creation_input_tokens", None),
+            cache_read_input_tokens=getattr(response.usage, "cache_read_input_tokens", None),
+            batch=batch,
+        )
+
     def _log(self, role, system, user, text, *, model_version, input_tokens, output_tokens,
-              latency_ms, error=None, cache_creation_input_tokens=None, cache_read_input_tokens=None):
+              latency_ms, error=None, cache_creation_input_tokens=None, cache_read_input_tokens=None,
+              batch=False):
         if self._logger is None:
             return
         self._logger.log(CallRecord(
@@ -361,6 +479,7 @@ class AnthropicClient(LLMClient):
             latency_ms=latency_ms, error=error,
             cache_creation_input_tokens=cache_creation_input_tokens,
             cache_read_input_tokens=cache_read_input_tokens,
+            batch=batch,
         ))
 
 
@@ -462,7 +581,8 @@ class MockLLMClient(LLMClient):
 
 
 def build_llm_client(
-    config: Config, *, force_provider: str | None = None, logger: CallLogger | None = None
+    config: Config, *, force_provider: str | None = None, logger: CallLogger | None = None,
+    batch: bool = False,
 ) -> LLMClient:
     provider = force_provider or config.provider
     if provider == "openai":
@@ -476,7 +596,7 @@ def build_llm_client(
     if provider == "anthropic":
         if not config.anthropic_api_key:
             raise RuntimeError("ANTHROPIC_API_KEY가 설정되지 않았습니다 (.env 확인)")
-        return AnthropicClient(config.anthropic_api_key, config.anthropic_model, logger)
+        return AnthropicClient(config.anthropic_api_key, config.anthropic_model, logger, batch=batch)
     return MockLLMClient()
 
 
@@ -488,12 +608,13 @@ ENSEMBLE_PROVIDERS: tuple[str, ...] = ("openai", "gemini", "anthropic")
 
 
 def build_ensemble_pool(
-    config: Config, *, force_provider: str | None = None, logger: CallLogger | None = None
+    config: Config, *, force_provider: str | None = None, logger: CallLogger | None = None,
+    batch: bool = False,
 ) -> dict[str, LLMClient]:
     provider = force_provider or config.provider
     if provider != "mock":
         return {
-            name: build_llm_client(config, force_provider=name, logger=logger)
+            name: build_llm_client(config, force_provider=name, logger=logger, batch=batch)
             for name in ENSEMBLE_PROVIDERS
         }
     return {name: MockLLMClient() for name in ENSEMBLE_PROVIDERS}

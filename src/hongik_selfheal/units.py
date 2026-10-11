@@ -88,6 +88,63 @@ def unit_d_output_guardrail(response: str) -> tuple[str, bool]:
     return response, False
 
 
+def _blocked_by_a() -> PipelineResult:
+    return PipelineResult(
+        final_response=_REFUSAL_MESSAGE,
+        blocked_by_unit="A",
+        raw_unit_c_response="",
+        retrieved_context="",
+    )
+
+
+def run_pipeline_many(
+    user_inputs: list[str],
+    srs: SRS,
+    llm_client: LLMClient,
+    *,
+    temperature: float = 0.2,
+    kb=DEFAULT_KB,
+) -> list[PipelineResult]:
+    """여러 입력을 유닛 A~D에 통과시킨다. 유닛 C 호출은 complete_many()로 한 번에
+    보내므로 배치 클라이언트에서는 하나의 배치가 된다 (2026-10-11 비용 절감).
+    결과는 입력 순서와 같다."""
+    results: list[PipelineResult | None] = [None] * len(user_inputs)
+    pending: list[tuple[int, str]] = []
+    for i, user_input in enumerate(user_inputs):
+        blocked, _reason = unit_a_input_guardrail(user_input)
+        if blocked:
+            results[i] = _blocked_by_a()
+        else:
+            pending.append((i, unit_b_retrieve(user_input, kb)))
+    if pending:
+        system_prompt = srs.render_system_prompt()
+        raws = llm_client.complete_many([
+            (system_prompt, f"[내부 참고 지식]\n{context}\n\n[사용자 입력]\n{user_inputs[i]}", temperature)
+            for i, context in pending
+        ])
+        for (i, context), raw_response in zip(pending, raws):
+            if isinstance(raw_response, LLMRefusalError):
+                # 기반 모델(Unit C)이 SRS 페르소나와 무관하게 자체 안전성 정책으로
+                # 응답 생성 자체를 거부하는 경우가 있다 (thesis.md §3.6.3). 이는
+                # 우리 SRS/Meta-Rule 메커니즘이 아닌 모델 자체의 방어이므로 "A"/"D"와
+                # 구분해 "C"로 표시하고, 그래도 심판관 채점은 정상적으로 받게 한다.
+                results[i] = PipelineResult(
+                    final_response=_REFUSAL_MESSAGE,
+                    blocked_by_unit="C",
+                    raw_unit_c_response="(모델이 자체 안전성 정책으로 응답 생성을 거부함: stop_reason=refusal)",
+                    retrieved_context=context,
+                )
+                continue
+            filtered_response, flagged_d = unit_d_output_guardrail(raw_response)
+            results[i] = PipelineResult(
+                final_response=filtered_response,
+                blocked_by_unit="D" if flagged_d else None,
+                raw_unit_c_response=raw_response,
+                retrieved_context=context,
+            )
+    return results
+
+
 def run_pipeline(
     user_input: str,
     srs: SRS,
@@ -96,37 +153,7 @@ def run_pipeline(
     temperature: float = 0.2,
     kb=DEFAULT_KB,
 ) -> PipelineResult:
-    blocked, reason = unit_a_input_guardrail(user_input)
-    if blocked:
-        return PipelineResult(
-            final_response=_REFUSAL_MESSAGE,
-            blocked_by_unit="A",
-            raw_unit_c_response="",
-            retrieved_context="",
-        )
-
-    context = unit_b_retrieve(user_input, kb)
-    try:
-        raw_response = unit_c_generate(srs, context, user_input, llm_client, temperature)
-    except LLMRefusalError:
-        # 기반 모델(Unit C)이 SRS 페르소나와 무관하게 자체 안전성 정책으로
-        # 응답 생성 자체를 거부하는 경우가 있다 (thesis.md §3.6.3). 이는
-        # 우리 SRS/Meta-Rule 메커니즘이 아닌 모델 자체의 방어이므로 "A"/"D"와
-        # 구분해 "C"로 표시하고, 그래도 심판관 채점은 정상적으로 받게 한다.
-        return PipelineResult(
-            final_response=_REFUSAL_MESSAGE,
-            blocked_by_unit="C",
-            raw_unit_c_response="(모델이 자체 안전성 정책으로 응답 생성을 거부함: stop_reason=refusal)",
-            retrieved_context=context,
-        )
-    filtered_response, flagged_d = unit_d_output_guardrail(raw_response)
-
-    return PipelineResult(
-        final_response=filtered_response,
-        blocked_by_unit="D" if flagged_d else None,
-        raw_unit_c_response=raw_response,
-        retrieved_context=context,
-    )
+    return run_pipeline_many([user_input], srs, llm_client, temperature=temperature, kb=kb)[0]
 
 
 def run_pipeline_multi(
@@ -139,36 +166,9 @@ def run_pipeline_multi(
 ) -> dict[str, PipelineResult]:
     """상용 LLM 3종(target_clients) 각각을 유닛 C로 사용해 동일 입력에 대한
     응답을 독립적으로 생성한다 (지도교수 피드백: Unit C 앙상블 검증).
-    유닛 A/B는 모델과 무관한 결정론적 로직이므로 한 번만 실행해 공유한다.
+    유닛 A/B는 모델과 무관한 결정론적 로직이다.
     """
-    blocked, _reason = unit_a_input_guardrail(user_input)
-    if blocked:
-        blocked_result = PipelineResult(
-            final_response=_REFUSAL_MESSAGE,
-            blocked_by_unit="A",
-            raw_unit_c_response="",
-            retrieved_context="",
-        )
-        return {provider: blocked_result for provider in target_clients}
-
-    context = unit_b_retrieve(user_input, kb)
-    results: dict[str, PipelineResult] = {}
-    for provider, client in target_clients.items():
-        try:
-            raw_response = unit_c_generate(srs, context, user_input, client, temperature)
-        except LLMRefusalError:
-            results[provider] = PipelineResult(
-                final_response=_REFUSAL_MESSAGE,
-                blocked_by_unit="C",
-                raw_unit_c_response="(모델이 자체 안전성 정책으로 응답 생성을 거부함: stop_reason=refusal)",
-                retrieved_context=context,
-            )
-            continue
-        filtered_response, flagged_d = unit_d_output_guardrail(raw_response)
-        results[provider] = PipelineResult(
-            final_response=filtered_response,
-            blocked_by_unit="D" if flagged_d else None,
-            raw_unit_c_response=raw_response,
-            retrieved_context=context,
-        )
-    return results
+    return {
+        provider: run_pipeline(user_input, srs, client, temperature=temperature, kb=kb)
+        for provider, client in target_clients.items()
+    }

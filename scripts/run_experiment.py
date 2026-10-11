@@ -130,6 +130,14 @@ def parse_args() -> argparse.Namespace:
         "않고 라운드별 준수율의 추세(평균±표준편차)를 관측하는 것이 목적이기 때문이다. "
         "비용이 거의 n_repeat배로 늘어나므로 규모를 함께 낮추는 것을 권장.",
     )
+    parser.add_argument(
+        "--batch",
+        action="store_true",
+        default=False,
+        help="Anthropic 호출 중 라운드 단위로 모이는 응답 생성·채점을 Message Batches API로 보냄 "
+        "(입출력 단가 50%%, 2026-10-11). 배치 하나가 끝나야 다음 단계로 가므로 실행 시간은 길어질 수 있다. "
+        "Meta-Rule 생성·사전 점검처럼 한 건씩 오는 호출은 일반 API를 쓴다.",
+    )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
         "--attack-pool-file",
@@ -204,13 +212,13 @@ def main() -> None:
         print(f"[run_experiment] 원문 API 호출 로그: {raw_log_path}")
 
     # 교차 모델 검증(§3.5.5)에 3개 백엔드가 전부 필요하므로 mock이 아니면 항상 3종을 빌드한다.
-    cross_model_clients = build_ensemble_pool(config, force_provider=mode, logger=call_logger)
+    cross_model_clients = build_ensemble_pool(config, force_provider=mode, logger=call_logger, batch=args.batch)
     primary_client = cross_model_clients[args.primary_provider]
     redteam_client = cross_model_clients[args.redteam_provider]
 
     print(
         f"[run_experiment] mode={mode} primary={args.primary_provider} "
-        f"redteam={args.redteam_provider} cross_model_backends={list(cross_model_clients)}"
+        f"redteam={args.redteam_provider} cross_model_backends={list(cross_model_clients)} batch={args.batch}"
     )
 
     if args.attack_pool_file is not None:
@@ -313,6 +321,7 @@ def main() -> None:
     output["srs_variant"] = args.srs_variant
     output["mode"] = mode
     output["primary_provider"] = args.primary_provider
+    output["anthropic_batch"] = args.batch
     output["redteam_provider"] = args.redteam_provider
     output["cross_model_backends"] = providers
     output["run_at_utc"] = datetime.now(timezone.utc).isoformat()

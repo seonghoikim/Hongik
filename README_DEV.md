@@ -40,6 +40,16 @@ PYTHONPATH=src python3 scripts/run_experiment.py --help
 PYTHONPATH=src python3 -m pytest tests/ -v
 ```
 
+## 비용 절감 장치
+
+- 프롬프트 캐싱 (항상 켜짐, 2026-08-19): Anthropic 호출의 system 프롬프트(SRS·채점 기준)를 캐시한다.
+  한 라운드 안에서는 system이 같으므로 첫 호출 뒤에는 그 부분이 기본 입력가의 10%로 계산된다.
+- `--batch` (선택, 2026-10-11): 라운드마다 모이는 Anthropic 응답 생성·채점을 Message Batches API로
+  보낸다(입출력 50%). 배치 하나가 끝나야 다음 단계로 가므로 실행 시간이 길어진다. 실패·만료된 건은
+  일반 API로 한 건씩 다시 보낸다. 배치 처리된 호출은 원문 로그의 `batch: true`로 구분되고 비용 추정에
+  50% 할인이 반영된다.
+
+
 - 실측 결과: `data/results/experiment_real_<timestamp>.json`
 - mock 결과: `data/results/mock/`, `data/srs/mock/` (git 제외, 실측 결과와 섞이지 않게 분리)
 - 원문 호출 로그 `raw_calls_*.jsonl`과 체크포인트 `checkpoint_*.json`은 git 제외

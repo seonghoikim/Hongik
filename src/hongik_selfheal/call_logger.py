@@ -37,6 +37,8 @@ class CallRecord:
     # 있고 신규 기록이라는 개념이 없어 cache_read_input_tokens만 채워진다.
     cache_creation_input_tokens: int | None = None
     cache_read_input_tokens: int | None = None
+    # Message Batches API로 처리된 호출 (입출력 단가 50%, 2026-10-11)
+    batch: bool = False
 
 
 class CallLogger:
@@ -73,9 +75,11 @@ class CallLogger:
                 key, {
                     "calls": 0, "input_tokens": 0, "output_tokens": 0, "errors": 0,
                     "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0,
+                    "batch_calls": 0,
                 }
             )
             bucket["calls"] += 1
+            bucket["batch_calls"] += 1 if r.batch else 0
             if r.error:
                 bucket["errors"] += 1
                 error_count += 1
@@ -99,12 +103,13 @@ class CallLogger:
                 # Anthropic 프롬프트 캐싱 단가(2026 기준 ephemeral/5분 TTL): 캐시
                 # 신규 기록은 기본 입력가의 1.25배, 캐시 적중분은 0.1배. 캐싱을
                 # 쓰지 않는 프로바이더/호출은 cache_* 값이 0이라 기존 계산과 동일하다.
-                total_cost += (
+                cost = (
                     in_tok / 1_000_000 * in_price
                     + out_tok / 1_000_000 * out_price
                     + cache_creation / 1_000_000 * in_price * 1.25
                     + cache_read / 1_000_000 * in_price * 0.1
                 )
+                total_cost += cost * 0.5 if r.batch else cost
 
         return {
             "total_calls": len(self._records),
@@ -117,7 +122,7 @@ class CallLogger:
             "cost_note": (
                 "PRICING_TABLE의 개략 단가로 계산한 참고치입니다. 실제 청구액은 "
                 "각 콘솔의 결제 내역을 확인하십시오. 캐시 단가(쓰기 1.25배/읽기 "
-                "0.1배)도 근사치입니다."
+                "0.1배)와 배치 할인(50%)도 근사치입니다."
             ),
             "by_provider_role": by_provider_role,
         }
