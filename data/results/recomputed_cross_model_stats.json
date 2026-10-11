@@ -1,0 +1,254 @@
+[
+  {
+    "run": "7차",
+    "file": "experiment_real_20260804_060902.json",
+    "srs_version": "v1.5",
+    "n_items": 23,
+    "backends": [
+      "openai",
+      "gemini",
+      "anthropic"
+    ],
+    "top_grade_rate": {
+      "openai": 60.9,
+      "gemini": 60.9,
+      "anthropic": 52.2
+    },
+    "mean_score": {
+      "openai": 2.565,
+      "gemini": 2.609,
+      "anthropic": 2.522
+    },
+    "validated_rate": 47.8,
+    "friedman": {
+      "test_name": "friedman",
+      "statistic": 0.7500000000000662,
+      "p_value": 0.6872892787909494,
+      "note": "3개 조건 반복측정, 문항 23개. p > 0.05이면 조건 간 점수 차이가 통계적으로 유의하지 않습니다."
+    },
+    "cochran_q": {
+      "test_name": "cochran_q",
+      "statistic": 1.1428571428571428,
+      "p_value": 0.5647181220077593,
+      "note": "3개 조건 반복측정(이진), 자유도=2. p > 0.05이면 조건 간 비율 차이가 통계적으로 유의하지 않습니다."
+    },
+    "old_kruskal_wallis_p": 0.8289249163120833,
+    "old_chisquare_p": 0.609214612517845
+  },
+  {
+    "run": "8차",
+    "file": "experiment_real_20260804_082642.json",
+    "srs_version": "v1.5",
+    "n_items": 22,
+    "backends": [
+      "openai",
+      "gemini",
+      "anthropic"
+    ],
+    "top_grade_rate": {
+      "openai": 68.2,
+      "gemini": 50.0,
+      "anthropic": 31.8
+    },
+    "mean_score": {
+      "openai": 2.682,
+      "gemini": 2.455,
+      "anthropic": 2.182
+    },
+    "validated_rate": 45.5,
+    "friedman": {
+      "test_name": "friedman",
+      "statistic": 6.654545454545496,
+      "p_value": 0.03589085586287958,
+      "note": "3개 조건 반복측정, 문항 22개. p > 0.05이면 조건 간 점수 차이가 통계적으로 유의하지 않습니다."
+    },
+    "cochran_q": {
+      "test_name": "cochran_q",
+      "statistic": 5.647058823529412,
+      "p_value": 0.05939593960520476,
+      "note": "3개 조건 반복측정(이진), 자유도=2. p > 0.05이면 조건 간 비율 차이가 통계적으로 유의하지 않습니다."
+    },
+    "old_kruskal_wallis_p": 0.031498364456954295,
+    "old_chisquare_p": 0.10241342372607982
+  },
+  {
+    "run": "9차",
+    "file": "experiment_real_20260804_102353.json",
+    "srs_version": "v1.13",
+    "n_items": 23,
+    "backends": [
+      "openai",
+      "gemini",
+      "anthropic"
+    ],
+    "top_grade_rate": {
+      "openai": 100.0,
+      "gemini": 87.0,
+      "anthropic": 91.3
+    },
+    "mean_score": {
+      "openai": 3.0,
+      "gemini": 2.783,
+      "anthropic": 2.826
+    },
+    "validated_rate": 91.3,
+    "friedman": {
+      "test_name": "friedman",
+      "statistic": 4.666666666666693,
+      "p_value": 0.09697196786440376,
+      "note": "3개 조건 반복측정, 문항 23개. p > 0.05이면 조건 간 점수 차이가 통계적으로 유의하지 않습니다."
+    },
+    "cochran_q": {
+      "test_name": "cochran_q",
+      "statistic": 4.666666666666667,
+      "p_value": 0.09697196786440507,
+      "note": "3개 조건 반복측정(이진), 자유도=2. p > 0.05이면 조건 간 비율 차이가 통계적으로 유의하지 않습니다."
+    },
+    "old_kruskal_wallis_p": 0.2303334068404191,
+    "old_chisquare_p": 0.37720998446060505
+  },
+  {
+    "run": "10차 (baseline)",
+    "file": "ablation_baseline.json",
+    "srs_version": "v1.15",
+    "n_items": 23,
+    "backends": [
+      "openai",
+      "gemini",
+      "anthropic"
+    ],
+    "top_grade_rate": {
+      "openai": 30.4,
+      "gemini": 43.5,
+      "anthropic": 13.0
+    },
+    "mean_score": {
+      "openai": 2.261,
+      "gemini": 2.391,
+      "anthropic": 2.043
+    },
+    "validated_rate": 21.7,
+    "friedman": {
+      "test_name": "friedman",
+      "statistic": 4.204081632653089,
+      "p_value": 0.1222067720128284,
+      "note": "3개 조건 반복측정, 문항 23개. p > 0.05이면 조건 간 점수 차이가 통계적으로 유의하지 않습니다."
+    },
+    "cochran_q": {
+      "test_name": "cochran_q",
+      "statistic": 4.933333333333334,
+      "p_value": 0.0848672789700174,
+      "note": "3개 조건 반복측정(이진), 자유도=2. p > 0.05이면 조건 간 비율 차이가 통계적으로 유의하지 않습니다."
+    },
+    "old_kruskal_wallis_p": 0.08224314660918686,
+    "old_chisquare_p": 0.24866039713707408
+  },
+  {
+    "run": "11차 (5W1H)",
+    "file": "ablation_5w1h.json",
+    "srs_version": "v2.15",
+    "n_items": 22,
+    "backends": [
+      "openai",
+      "gemini",
+      "anthropic"
+    ],
+    "top_grade_rate": {
+      "openai": 100.0,
+      "gemini": 77.3,
+      "anthropic": 22.7
+    },
+    "mean_score": {
+      "openai": 3.0,
+      "gemini": 2.773,
+      "anthropic": 2.182
+    },
+    "validated_rate": 81.8,
+    "friedman": {
+      "test_name": "friedman",
+      "statistic": 25.44444444444446,
+      "p_value": 2.9840705825819347e-06,
+      "note": "3개 조건 반복측정, 문항 22개. p > 0.05이면 조건 간 점수 차이가 통계적으로 유의하지 않습니다."
+    },
+    "cochran_q": {
+      "test_name": "cochran_q",
+      "statistic": 25.444444444444443,
+      "p_value": 2.9840705825819635e-06,
+      "note": "3개 조건 반복측정(이진), 자유도=2. p > 0.05이면 조건 간 비율 차이가 통계적으로 유의하지 않습니다."
+    },
+    "old_kruskal_wallis_p": 1.9512358877701494e-07,
+    "old_chisquare_p": 2.361942272312214e-06
+  },
+  {
+    "run": "12차 (baseline)",
+    "file": "pilot_5w1h_baseline.json",
+    "srs_version": "v1.3",
+    "n_items": 14,
+    "backends": [
+      "openai",
+      "gemini",
+      "anthropic"
+    ],
+    "top_grade_rate": {
+      "openai": 42.9,
+      "gemini": 78.6,
+      "anthropic": 7.1
+    },
+    "mean_score": {
+      "openai": 2.357,
+      "gemini": 2.643,
+      "anthropic": 1.857
+    },
+    "validated_rate": 42.9,
+    "friedman": {
+      "test_name": "friedman",
+      "statistic": 7.0,
+      "p_value": 0.0301973834223185,
+      "note": "3개 조건 반복측정, 문항 14개. p > 0.05이면 조건 간 점수 차이가 통계적으로 유의하지 않습니다."
+    },
+    "cochran_q": {
+      "test_name": "cochran_q",
+      "statistic": 12.5,
+      "p_value": 0.0019304541362277095,
+      "note": "3개 조건 반복측정(이진), 자유도=2. p > 0.05이면 조건 간 비율 차이가 통계적으로 유의하지 않습니다."
+    },
+    "old_kruskal_wallis_p": 0.005157201914953606,
+    "old_chisquare_p": 0.0026029940191131824
+  },
+  {
+    "run": "13차 (5W1H)",
+    "file": "pilot_5w1h_5w1h.json",
+    "srs_version": "v2.3",
+    "n_items": 14,
+    "backends": [
+      "openai",
+      "gemini",
+      "anthropic"
+    ],
+    "top_grade_rate": {
+      "openai": 21.4,
+      "gemini": 57.1,
+      "anthropic": 14.3
+    },
+    "mean_score": {
+      "openai": 2.214,
+      "gemini": 2.5,
+      "anthropic": 1.929
+    },
+    "validated_rate": 14.3,
+    "friedman": {
+      "test_name": "friedman",
+      "statistic": 6.8965517241379,
+      "p_value": 0.03180041744538029,
+      "note": "3개 조건 반복측정, 문항 14개. p > 0.05이면 조건 간 점수 차이가 통계적으로 유의하지 않습니다."
+    },
+    "cochran_q": {
+      "test_name": "cochran_q",
+      "statistic": 8.857142857142858,
+      "p_value": 0.011931522535756139,
+      "note": "3개 조건 반복측정(이진), 자유도=2. p > 0.05이면 조건 간 비율 차이가 통계적으로 유의하지 않습니다."
+    },
+    "old_kruskal_wallis_p": 0.04021360739372921,
+    "old_chisquare_p": 0.03267007584388452
+  }
+]

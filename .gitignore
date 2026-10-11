@@ -14,3 +14,12 @@ data/results/checkpoint_*.json
 
 # kim-paper-kit 작업용 중간 파일
 _work/
+
+# mock 실행 결과 (실험 프로그램 점검 2026-10-11): 실측 결과와 섞이지 않게 분리, 저장소 제외
+data/results/mock/
+data/srs/mock/
+
+# 그림 작업용 npm 패키지
+/node_modules/
+/package.json
+/package-lock.json

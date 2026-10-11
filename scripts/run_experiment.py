@@ -47,9 +47,9 @@ from hongik_selfheal.llm_client import build_ensemble_pool  # noqa: E402
 from hongik_selfheal.srs import initial_srs_v1, initial_srs_v2_with_5w1h  # noqa: E402
 from hongik_selfheal.stats import (  # noqa: E402
     chi_square_independence,
-    chi_square_multi_group,
+    cochran_q,
+    friedman,
     independent_mannwhitney,
-    kruskal_wallis,
     paired_wilcoxon,
 )
 
@@ -126,7 +126,7 @@ def parse_args() -> argparse.Namespace:
         help="시나리오당 반복 시행 횟수 (thesis.md §3.5.1 N=반복시행, 종합 점검 2026-08-12 발견 — "
         "1~11차 파일럿까지는 전부 n_repeat=1이라 라운드 진동이 SRS 효과인지 단일 시행 노이즈인지 "
         "구분할 수 없었음). 1보다 크면 자가 치유 루프가 '전원 PASS'에 도달해도 조기 종료하지 "
-        "않고 --max-rounds까지 전부 진행한다 — N배 다수결 집계에서는 100% 도달을 목표로 삼지 "
+        "않고 --max-rounds까지 전부 진행한다 — N배 다수결 집계에서는 100%% 도달을 목표로 삼지 "
         "않고 라운드별 준수율의 추세(평균±표준편차)를 관측하는 것이 목적이기 때문이다. "
         "비용이 거의 n_repeat배로 늘어나므로 규모를 함께 낮추는 것을 권장.",
     )
@@ -189,6 +189,9 @@ def main() -> None:
 
     run_id = f"{mode}_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}"
     results_dir = Path(__file__).resolve().parent.parent / "data" / "results"
+    if mode == "mock":
+        # Keep mock output out of the real-results folder (program review 2026-10-11).
+        results_dir = results_dir / "mock"
     rag_dir = Path(__file__).resolve().parent.parent / "data" / "rag"
     kb_snapshot_path = save_kb_snapshot(rag_dir)
     print(f"[run_experiment] RAG 지식베이스 스냅샷({KB_VERSION}): {kb_snapshot_path}")
@@ -226,7 +229,7 @@ def main() -> None:
     # 실행마다 별도 하위 폴더에 저장한다 - v1.1처럼 버전 번호가 같은 파일이 실행마다
     # 재생성되므로, 공유 data/srs/ 루트에 그대로 쓰면 이전 실행의 Meta-Rule 히스토리를
     # 덮어써 버린다(2026-08-04, 실제로 7차 파일럿 v1.1~v1.5가 8차 실행에 덮어써짐).
-    srs_dir = Path(__file__).resolve().parent.parent / "data" / "srs" / run_id
+    srs_dir = Path(__file__).resolve().parent.parent / "data" / "srs" / ("mock" if mode == "mock" else "") / run_id
     initial_srs = initial_srs_v1() if args.srs_variant == "baseline" else initial_srs_v2_with_5w1h()
     print(f"[run_experiment] srs_variant={args.srs_variant} initial_srs_version={initial_srs.version}")
     if args.n_repeat > 1:
@@ -289,23 +292,21 @@ def main() -> None:
     cross_model_results = output["cross_model"]["results"]
     providers = list(output["cross_model"]["per_backend_full_defense_rate"])
     score_groups = [[r["backend_scores"][p] for r in cross_model_results] for p in providers]
-    cross_model_kw = kruskal_wallis(*score_groups)
+    # Same held-out items answered by every backend -> repeated measures (program review 2026-10-11).
+    cross_model_friedman = friedman(*score_groups)
+    full_defense_groups = [
+        [1 if r["backend_grades"][p] == "FULL_DEFENSE" else 0 for r in cross_model_results] for p in providers
+    ]
+    cross_model_cochran = cochran_q(*full_defense_groups)
 
-    def _backend_grade_counts(provider: str) -> tuple[int, ...]:
-        grades = [r["backend_grades"][provider] for r in cross_model_results]
-        return tuple(grades.count(g) for g in GRADE_ORDER)
-
-    cross_model_chi2 = chi_square_multi_group(
-        *(_backend_grade_counts(p) for p in providers), labels=tuple(GRADE_ORDER)
-    )
 
     output["stats"] = {
         "wilcoxon_v1_vs_final_healing_set": asdict(wilcoxon_result),
         "mannwhitney_healing_final_vs_held_out": asdict(mannwhitney_result),
         "chisquare_healing_final_vs_held_out": asdict(chi2_result),
         "chisquare_adaptive_blackbox_vs_whitebox": asdict(adaptive_chi2_result),
-        "kruskalwallis_cross_model_backends": asdict(cross_model_kw),
-        "chisquare_cross_model_backends": asdict(cross_model_chi2),
+        "friedman_cross_model_backends": asdict(cross_model_friedman),
+        "cochranq_cross_model_full_defense": asdict(cross_model_cochran),
     }
     output["kb_version"] = KB_VERSION
     output["members_version"] = MEMBERS_VERSION

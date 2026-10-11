@@ -112,7 +112,8 @@ def evaluate_set(
                     llm_client,
                     temperature=judge_temperature,
                 )
-            except LLMRefusalError as e:
+            except (LLMRefusalError, ValueError) as e:
+                # ValueError: judge output still invalid after one retry (program review 2026-10-11).
                 # 심판관 모델이 재시도 후에도 채점을 거부하는 사례는 (thesis.md
                 # §3.6.3) 이 개별 시행만 건너뛴다 - n_repeat회 중 나머지가 있으면
                 # 그것만으로 집계한다.
@@ -238,6 +239,10 @@ def self_healing_loop(
         failing = [r for r in summary.results if r.score < _MAX_SCORE_PER_ITEM]
         if not failing and n_repeat == 1:
             break
+        if round_index == max_rounds:
+            # Rules made after the last round would never be evaluated on the healing set,
+            # so v_final must be the last evaluated version (program review 2026-10-11).
+            break
 
         if not failing:
             # n_repeat>1인데 이번 라운드가 전부 PASS면 더 고칠 실패 사례가 없다 -
@@ -362,7 +367,7 @@ def cross_model_verify(
                     judge_client,
                     temperature=judge_temperature,
                 )
-            except LLMRefusalError as e:
+            except (LLMRefusalError, ValueError) as e:
                 # 세 백엔드 중 하나라도 채점 불가면 그 시나리오 전체를 교차 모델
                 # 비교에서 제외한다 - 일부 백엔드만 점수가 있으면 2/3 비교 자체가
                 # 성립하지 않으므로 (thesis.md §3.6.3).

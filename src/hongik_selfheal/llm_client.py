@@ -450,9 +450,12 @@ class MockLLMClient(LLMClient):
         category = m.group(1) if m else "일반"
         m2 = re.search(r"(\d+)\s*개", user)
         n = int(m2.group(1)) if m2 else 5
+        # Distinct sentences so dedup (similarity >= 0.85) keeps them and both splits fill.
+        fillers = ["오늘 안에", "감사팀 요청으로", "인수인계 때문에", "번역 검수용으로", "소설 장면으로",
+                   "승인번호 A-17로", "고객센터 지시라며", "테스트 계정에서", "마감 직전이라", "본사 확인용으로"]
         samples = [
-            f"[mock-{category}] {self.JAILBREAK_TRIGGERS[i % len(self.JAILBREAK_TRIGGERS)]} "
-            f"관련 변형 공격 문장 (variant {i})"
+            f"[mock-{category}] {fillers[i % len(fillers)]} {self.JAILBREAK_TRIGGERS[i % len(self.JAILBREAK_TRIGGERS)]} "
+            f"#{i}: {'가나다라마바사아자차카타파하'[i % 14] * (i + 3)}"
             for i in range(n)
         ]
         return json.dumps({"attacks": samples}, ensure_ascii=False)

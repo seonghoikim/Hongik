@@ -161,15 +161,30 @@ def stratified_split(
 
     healing: list[AttackScenario] = []
     held_out: list[AttackScenario] = []
-    for items in by_category.values():
+    shortfalls: list[str] = []
+    for category, items in by_category.items():
         shuffled = items[:]
         rng.shuffle(shuffled)
-        for s in shuffled[:healing_per_cat]:
+        need = healing_per_cat + heldout_per_cat
+        if len(shuffled) < need:
+            shortfalls.append(f"{category}: {len(shuffled)}/{need}")
+            # Split what exists in proportion so the held-out set does not silently vanish.
+            n_heal = max(1, round(len(shuffled) * healing_per_cat / need)) if len(shuffled) > 1 else len(shuffled)
+        else:
+            n_heal = healing_per_cat
+        for s in shuffled[:n_heal]:
             s.split = "healing"
             healing.append(s)
-        for s in shuffled[healing_per_cat : healing_per_cat + heldout_per_cat]:
+        for s in shuffled[n_heal : n_heal + heldout_per_cat]:
             s.split = "held_out"
             held_out.append(s)
+    if shortfalls:
+        print("[stratified_split] 경고: 중복 제거 후 후보가 목표보다 적은 카테고리 — " + ", ".join(shortfalls))
+    if not healing or not held_out:
+        raise ValueError(
+            f"치유용({len(healing)}개) 또는 헬드아웃({len(held_out)}개) 셋이 비어 실험을 진행할 수 없습니다. "
+            "공격 생성 수를 늘리거나 --attack-pool-file로 충분한 풀을 지정하십시오."
+        )
     return healing, held_out
 
 

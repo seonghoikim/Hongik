@@ -3,7 +3,10 @@
 - paired_wilcoxon: 같은 문항을 반복 측정한 경우 (예: 치유용 셋의 v1.0 점수 vs v_final 점수)
 - independent_mannwhitney / chi_square_independence: 서로 다른 문항 집합을 비교하는 경우
   (예: 치유용 셋 vs 헬드아웃 셋, 블랙박스 vs 화이트박스 적응형 재공격)
-- kruskal_wallis / chi_square_multi_group: 같은 문항 집합을 3개 이상의 독립 조건에
+- friedman / cochran_q: 같은 문항을 3개 이상의 조건(예: 백엔드 LLM 3종)이 각각 응답한
+  반복측정 자료. 교차 모델 검증(§3.5.5)은 이 두 검정을 쓴다 (program review 2026-10-11:
+  같은 문항을 3개 모델이 답하므로 독립 집단 가정의 Kruskal-Wallis·카이제곱은 부적절).
+- kruskal_wallis / chi_square_multi_group: 서로 다른 문항 집합을 3개 이상의 독립 조건에
   적용한 경우 (예: 동일 헬드아웃 셋을 3개 백엔드 LLM에 각각 통과시킨 교차 모델 검증,
   §3.5.5). Mann-Whitney/카이제곱의 k-그룹(k>=2) 일반화이며 k=2일 때는 각각과 동치.
 
@@ -96,6 +99,50 @@ def chi_square_independence(
             f"자유도={dof}.{dropped_note} p > 0.05이면 두 집단의 등급 분포가 "
             "통계적으로 독립(=차이 없음)이라는 근거가 됩니다."
         ),
+    )
+
+
+def friedman(*groups: list[int]) -> TestResult:
+    """Repeated measures over the same items (k >= 3 conditions): Friedman test on scores.
+    groups[j][i] is the score of item i under condition j."""
+    if len(groups) < 3:
+        raise ValueError("friedman은 최소 3개 조건이 필요합니다.")
+    n = len(groups[0])
+    if any(len(g) != n for g in groups):
+        raise ValueError("모든 조건은 같은 문항 순서·개수여야 합니다.")
+    if n < 2 or len({v for g in groups for v in g}) <= 1:
+        return TestResult("friedman", None, None, "점수 변이가 없어 Friedman 검정을 적용할 수 없습니다 (차이 없음).")
+    result = scipy_stats.friedmanchisquare(*groups)
+    return TestResult(
+        test_name="friedman",
+        statistic=float(result.statistic),
+        p_value=float(result.pvalue),
+        note=f"{len(groups)}개 조건 반복측정, 문항 {n}개. p > 0.05이면 조건 간 점수 차이가 통계적으로 유의하지 않습니다.",
+    )
+
+
+def cochran_q(*binary_groups: list[int]) -> TestResult:
+    """Repeated measures with a binary outcome (e.g. FULL_DEFENSE or not) for k >= 3
+    conditions. binary_groups[j][i] is 1/0 for item i under condition j."""
+    k = len(binary_groups)
+    if k < 3:
+        raise ValueError("cochran_q는 최소 3개 조건이 필요합니다.")
+    n = len(binary_groups[0])
+    if any(len(g) != n for g in binary_groups):
+        raise ValueError("모든 조건은 같은 문항 순서·개수여야 합니다.")
+    col = [sum(g) for g in binary_groups]
+    row = [sum(binary_groups[j][i] for j in range(k)) for i in range(n)]
+    total = sum(col)
+    denom = k * total - sum(r * r for r in row)
+    if denom == 0:
+        return TestResult("cochran_q", None, None, "모든 문항에서 조건 간 결과가 같아 Cochran's Q를 적용할 수 없습니다 (차이 없음).")
+    q = (k - 1) * (k * sum(c * c for c in col) - total * total) / denom
+    p = float(scipy_stats.chi2.sf(q, k - 1))
+    return TestResult(
+        test_name="cochran_q",
+        statistic=float(q),
+        p_value=p,
+        note=f"{k}개 조건 반복측정(이진), 자유도={k - 1}. p > 0.05이면 조건 간 비율 차이가 통계적으로 유의하지 않습니다.",
     )
 
 
