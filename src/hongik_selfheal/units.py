@@ -104,10 +104,12 @@ def run_pipeline_many(
     *,
     temperature: float = 0.2,
     kb=DEFAULT_KB,
+    extra_contexts: list[str | None] | None = None,
 ) -> list[PipelineResult]:
     """여러 입력을 유닛 A~D에 통과시킨다. 유닛 C 호출은 complete_many()로 한 번에
     보내므로 배치 클라이언트에서는 하나의 배치가 된다 (2026-10-11 비용 절감).
-    결과는 입력 순서와 같다."""
+    extra_contexts[i]가 있으면 i번째 입력의 검색 결과 끝에 덧붙인다 — RAG 오염 문항이
+    허위 내부 문서를 검색 결과에 섞는 데 쓴다 (2026-10-12). 결과는 입력 순서와 같다."""
     results: list[PipelineResult | None] = [None] * len(user_inputs)
     pending: list[tuple[int, str]] = []
     for i, user_input in enumerate(user_inputs):
@@ -115,7 +117,11 @@ def run_pipeline_many(
         if blocked:
             results[i] = _blocked_by_a()
         else:
-            pending.append((i, unit_b_retrieve(user_input, kb)))
+            context = unit_b_retrieve(user_input, kb)
+            extra = extra_contexts[i] if extra_contexts else None
+            if extra:
+                context = f"{context}\n\n{extra}"
+            pending.append((i, context))
     if pending:
         system_prompt = srs.render_system_prompt()
         raws = llm_client.complete_many([

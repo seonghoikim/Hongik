@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .attack_taxonomy import TAXONOMY
 from .call_logger import PRICING_TABLE
 from .judge import _RUBRIC_SYSTEM_TEMPLATE
 from .srs import SRS
@@ -19,7 +20,10 @@ RULE_CHARS = 108                # mean length of 1,125 saved Meta-Rules (data/sr
 ATTACK_CHARS = 165              # held-out attack prompts, runs 9-13: 158-173
 CONTEXT_CHARS = 2100            # retrieved context, runs 9-13: 1,576-2,321
 CACHE_MIN_TOKENS = 1024         # shorter system prompts are not cached
-N_CATEGORIES = 8
+POISON_CHARS = 170              # fake notice added to rag_poisoning contexts (factual_attacks.py)
+JUDGE_OUT_CAP = 600             # judge reason capped at 150 chars (2026-10-12): JSON + reason, assumed upper bound
+REFERENCE_CHARS = 230           # true-value line (+ poisoned doc) shown to the judge for template items
+N_REDTEAM_CATEGORIES = sum(1 for c in TAXONOMY if c.source != "template")
 
 
 @dataclass(frozen=True)
@@ -90,10 +94,25 @@ def estimate_run(
     redteam_model: str,
     profile: CostProfile,
     rounds: int | None = None,
+    n_supplementary: int | None = None,
+    legacy_8_categories: bool = False,
 ) -> dict:
-    """One full run_experiment.py run. rounds=None assumes the loop runs to max_rounds."""
+    """One full run_experiment.py run. rounds=None assumes the loop runs to max_rounds.
+    n_per_category applies to core categories, n_supplementary (default: same) to the rest.
+    legacy_8_categories=True reproduces the pre-2026-10-12 design (8 categories, no template items)
+    for back-testing against past runs."""
     rounds = rounds or max_rounds
-    n_heal = n_held = N_CATEGORIES * n_per_category
+    n_supp = n_per_category if n_supplementary is None else n_supplementary
+    if legacy_8_categories:
+        n_heal = 8 * n_per_category
+        poison_share = template_share = 0.0
+    else:
+        n_core_cats = sum(1 for c in TAXONOMY if c.core)
+        n_heal = n_core_cats * n_per_category + (len(TAXONOMY) - n_core_cats) * n_supp
+        # rag_poisoning items are all templates, misinformation items half
+        poison_share = n_per_category / n_heal if n_heal else 0.0
+        template_share = 1.5 * n_per_category / n_heal if n_heal else 0.0
+    n_held = n_heal
     anth = _Bill(primary_model)
     others = [_Bill(m) for m in other_models]
     red = _Bill(redteam_model)
@@ -104,16 +123,17 @@ def estimate_run(
         judge_sys = _tokens(len(_RUBRIC_SYSTEM_TEMPLATE.format(srs_excerpt=s.render_for_judge())))
         return unit_sys, judge_sys
 
-    unit_user = _tokens(CONTEXT_CHARS + ATTACK_CHARS + 30)
-    judge_user = _tokens(ATTACK_CHARS + profile.response_chars + 50)
+    judge_out = profile.judge_out if legacy_8_categories else min(profile.judge_out, JUDGE_OUT_CAP)
+    unit_user = _tokens(CONTEXT_CHARS + ATTACK_CHARS + 30 + poison_share * POISON_CHARS)
+    judge_user = _tokens(ATTACK_CHARS + profile.response_chars + 50 + template_share * REFERENCE_CHARS)
 
     def eval_stage(n_items: int, n_rules: int) -> None:
         unit_sys, judge_sys = sys_sizes(n_rules)
         calls = n_items * n_repeat
         anth.group(calls, unit_sys, unit_user, profile.unit_out, batchable=True)
-        anth.group(calls * profile.judge_retry, judge_sys, judge_user, profile.judge_out, batchable=True)
+        anth.group(calls * profile.judge_retry, judge_sys, judge_user, judge_out, batchable=True)
 
-    anth.group(1, sys_sizes(0)[1], judge_user, profile.judge_out, batchable=False)   # fallback check
+    anth.group(1, sys_sizes(0)[1], judge_user, judge_out, batchable=False)   # fallback check
     for r in range(rounds):
         eval_stage(n_heal, round(profile.rules_per_round * r))
     final_rules = round(profile.rules_per_round * (rounds - 1))
@@ -124,8 +144,8 @@ def estimate_run(
     anth.group(n_held, unit_sys, unit_user, profile.unit_out, batchable=True)
     for b in others:
         b.group(n_held, unit_sys, unit_user, profile.unit_out, batchable=False)
-    anth.group(3 * n_held * profile.judge_retry, judge_sys, judge_user, profile.judge_out, batchable=True)
-    red.group(N_CATEGORIES + 2, 0, 1300, 850, batchable=False)                          # attack generation
+    anth.group(3 * n_held * profile.judge_retry, judge_sys, judge_user, judge_out, batchable=True)
+    red.group((8 if legacy_8_categories else N_REDTEAM_CATEGORIES) + 2, 0, 1300, 850, batchable=False)  # attack generation
 
     bills = [anth, red, *others]
     return {

@@ -65,6 +65,10 @@ class AttackScenario:
     category: str
     text: str
     split: str = "unassigned"  # healing | held_out | adaptive_blackbox | adaptive_whitebox
+    # 2026-10-12 재설계: 정답이 있는 템플릿 문항은 정답 대조 정보(oracle.py)와, RAG 오염 문항은
+    # 검색 결과에 덧붙일 허위 문서를 함께 갖는다. 레드팀 문항은 둘 다 None.
+    oracle: dict | None = None
+    poison_context: str | None = None
 
 
 def _extract_json(text: str) -> dict:
@@ -118,16 +122,38 @@ def generate_category_scenarios(
     ]
 
 
+def category_targets(n_core: int, n_supplementary: int | None = None) -> dict[str, int]:
+    """범주별 목표 문항 수 (한 셋 기준). 핵심 범주는 n_core, 보완 범주는 n_supplementary
+    (None이면 n_core와 같게 — 2026-10-12 이전 실행과 같은 균등 배분)."""
+    n_supp = n_core if n_supplementary is None else n_supplementary
+    return {c.key: (n_core if c.core else n_supp) for c in TAXONOMY}
+
+
 def generate_full_pool(
-    n_per_category: int, llm_client: LLMClient, *, manual_review_hook=lambda text: True
+    n_per_category: int | dict[str, int], llm_client: LLMClient, *, manual_review_hook=lambda text: True
 ) -> list[AttackScenario]:
+    """n_per_category: 범주별 생성 개수(정수면 모든 범주 동일). source="template" 범주는 레드팀
+    호출 없이 지식베이스 템플릿으로, "mixed" 범주는 절반을 템플릿으로 만든다 (2026-10-12)."""
+    from .factual_attacks import false_premise_scenarios, rag_poisoning_scenarios  # avoid import cycle
+
+    targets = n_per_category if isinstance(n_per_category, dict) else {c.key: n_per_category for c in TAXONOMY}
     pool: list[AttackScenario] = []
     for category in TAXONOMY:
-        pool.extend(
-            generate_category_scenarios(
-                category.key, n_per_category, llm_client, manual_review_hook=manual_review_hook
+        n = targets.get(category.key, 0)
+        if n <= 0:
+            continue
+        if category.key == "rag_poisoning":
+            pool.extend(rag_poisoning_scenarios(n))
+            continue
+        n_template = n // 2 if category.source == "mixed" else 0
+        if n - n_template > 0:
+            pool.extend(
+                generate_category_scenarios(
+                    category.key, n - n_template, llm_client, manual_review_hook=manual_review_hook
+                )
             )
-        )
+        if n_template:
+            pool.extend(false_premise_scenarios(n_template))
     return pool
 
 
@@ -150,10 +176,29 @@ def load_pool(path: Path) -> list[AttackScenario]:
     return [AttackScenario(**item) for item in data]
 
 
+def _proportional_take(sources: list[list[AttackScenario]], n: int) -> list[AttackScenario]:
+    """Take n items from several source lists in proportion to their sizes (largest remainder)."""
+    total = sum(len(src) for src in sources)
+    if total == 0 or n <= 0:
+        return []
+    n = min(n, total)
+    quotas = [len(src) * n / total for src in sources]
+    counts = [int(q) for q in quotas]
+    for i in sorted(range(len(sources)), key=lambda i: quotas[i] - counts[i], reverse=True):
+        if sum(counts) >= n:
+            break
+        if counts[i] < len(sources[i]):
+            counts[i] += 1
+    return [x for src, c in zip(sources, counts) for x in src[:c]]
+
+
 def stratified_split(
-    pool: list[AttackScenario], healing_per_cat: int, heldout_per_cat: int, *, seed: int = 42
+    pool: list[AttackScenario], healing_per_cat: int | dict[str, int], heldout_per_cat: int | dict[str, int],
+    *, seed: int = 42,
 ) -> tuple[list[AttackScenario], list[AttackScenario]]:
-    """§3.5.1: 카테고리별 비율이 동일하도록 치유용/헬드아웃으로 나눈다."""
+    """§3.5.1: 카테고리별 비율이 동일하도록 보강용/헬드아웃으로 나눈다. 개수는 정수(모든 범주 동일)
+    또는 범주별 dict(category_targets)로 준다. mixed 범주는 템플릿·레드팀 문항이 양쪽에 고르게
+    가도록 출처별로 같은 비율로 나눈다."""
     rng = random.Random(seed)
     by_category: dict[str, list[AttackScenario]] = {}
     for scenario in pool:
@@ -163,19 +208,28 @@ def stratified_split(
     held_out: list[AttackScenario] = []
     shortfalls: list[str] = []
     for category, items in by_category.items():
-        shuffled = items[:]
-        rng.shuffle(shuffled)
-        need = healing_per_cat + heldout_per_cat
-        if len(shuffled) < need:
-            shortfalls.append(f"{category}: {len(shuffled)}/{need}")
+        per_heal = healing_per_cat[category] if isinstance(healing_per_cat, dict) else healing_per_cat
+        per_held = heldout_per_cat[category] if isinstance(heldout_per_cat, dict) else heldout_per_cat
+        templ = [s for s in items if s.oracle]
+        free = [s for s in items if not s.oracle]
+        rng.shuffle(templ)
+        rng.shuffle(free)
+        need = per_heal + per_held
+        total = len(templ) + len(free)
+        if total < need:
+            shortfalls.append(f"{category}: {total}/{need}")
             # Split what exists in proportion so the held-out set does not silently vanish.
-            n_heal = max(1, round(len(shuffled) * healing_per_cat / need)) if len(shuffled) > 1 else len(shuffled)
+            n_heal = max(1, round(total * per_heal / need)) if total > 1 else total
         else:
-            n_heal = healing_per_cat
-        for s in shuffled[:n_heal]:
+            n_heal = per_heal
+        # each source (template / red-team) is split in the same proportion, so both sets get both kinds
+        heal_part = _proportional_take([free, templ], n_heal)
+        rest_by_src = [[x for x in src if x not in heal_part] for src in (free, templ)]
+        held_part = _proportional_take(rest_by_src, per_held)
+        for s in heal_part:
             s.split = "healing"
             healing.append(s)
-        for s in shuffled[n_heal : n_heal + heldout_per_cat]:
+        for s in held_part:
             s.split = "held_out"
             held_out.append(s)
     if shortfalls:

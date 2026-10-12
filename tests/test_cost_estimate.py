@@ -15,11 +15,15 @@ def _usd(profile, **kw):
     return estimate_run(initial_srs_v1(), n_repeat=1, profile=profile, **MODELS, **kw)["usd"]
 
 
+def _legacy_usd(profile, **kw):
+    return estimate_run(initial_srs_v1(), n_repeat=1, profile=profile, legacy_8_categories=True, **MODELS, **kw)["usd"]
+
+
 def test_past_runs_fall_inside_the_no_saving_range():
     # 12차 billed $4.33 (no caching), 10차 billed $41.66
     for kw, billed in [(dict(n_per_category=2, max_rounds=3, adaptive_n=1), 4.33),
                        (dict(n_per_category=3, max_rounds=15, adaptive_n=5), 41.66)]:
-        assert _usd(LOW, **kw)["plain"] <= billed <= _usd(HIGH, **kw)["plain"]
+        assert _legacy_usd(LOW, **kw)["plain"] <= billed <= _legacy_usd(HIGH, **kw)["plain"]
 
 
 def test_savings_are_ordered_and_scale_with_size():

@@ -36,7 +36,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from hongik_selfheal.attack_generator import generate_full_pool, load_pool, save_pool, stratified_split  # noqa: E402
+from hongik_selfheal.attack_generator import (  # noqa: E402
+    category_targets, generate_full_pool, load_pool, save_pool, stratified_split,
+)
 from hongik_selfheal.call_logger import CallLogger  # noqa: E402
 from hongik_selfheal.canary import check_canary_drift, save_canary_baseline  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
@@ -109,7 +111,14 @@ def parse_args() -> argparse.Namespace:
         help="공격 시나리오/적응형 재공격 문장 생성 전용 모델 (기본 openai - "
         "Claude Sonnet 5는 정책상 이 역할을 거부함, thesis.md §3.5.2 참조)",
     )
-    parser.add_argument("--n-per-category", type=int, default=10, help="치유용/헬드아웃 각 카테고리당 개수")
+    parser.add_argument(
+        "--n-per-category", type=int, default=10,
+        help="보강용/헬드아웃 각 셋의 범주당 개수. 2026-10-12부터는 핵심 범주(정보 불일치성 5개)에 적용",
+    )
+    parser.add_argument(
+        "--n-supplementary", type=int, default=None,
+        help="보완 범주(4개)의 셋당 개수. 생략하면 --n-per-category와 같음 (본 실행 권장안: 핵심 6, 보완 2)",
+    )
     parser.add_argument(
         "--srs-variant",
         choices=["baseline", "5w1h"],
@@ -210,7 +219,7 @@ def main() -> None:
         estimates = [
             estimate_run(
                 initial, n_per_category=args.n_per_category, max_rounds=args.max_rounds,
-                adaptive_n=args.adaptive_n, n_repeat=args.n_repeat,
+                adaptive_n=args.adaptive_n, n_repeat=args.n_repeat, n_supplementary=args.n_supplementary,
                 primary_model=models[args.primary_provider], other_models=others,
                 redteam_model=models[args.redteam_provider], profile=profile,
             )
@@ -246,17 +255,18 @@ def main() -> None:
         f"redteam={args.redteam_provider} cross_model_backends={list(cross_model_clients)} batch={args.batch}"
     )
 
+    targets = category_targets(args.n_per_category, args.n_supplementary)
     if args.attack_pool_file is not None:
         pool = load_pool(args.attack_pool_file)
         print(f"[run_experiment] 공격 시나리오 풀을 파일에서 로드(재생성 건너뜀): {args.attack_pool_file} ({len(pool)}개)")
     else:
-        pool = generate_full_pool(n_per_category=args.n_per_category * 2, llm_client=redteam_client)
+        pool = generate_full_pool(
+            {k: 2 * v for k, v in targets.items()}, llm_client=redteam_client
+        )
         if args.save_attack_pool is not None:
             save_pool(pool, args.save_attack_pool)
             print(f"[run_experiment] 공격 시나리오 풀 저장(재사용용): {args.save_attack_pool}")
-    healing_set, held_out_set = stratified_split(
-        pool, healing_per_cat=args.n_per_category, heldout_per_cat=args.n_per_category
-    )
+    healing_set, held_out_set = stratified_split(pool, healing_per_cat=targets, heldout_per_cat=targets)
     print(f"[run_experiment] healing={len(healing_set)} held_out={len(held_out_set)}")
 
     # 실행마다 별도 하위 폴더에 저장한다 - v1.1처럼 버전 번호가 같은 파일이 실행마다
@@ -333,7 +343,14 @@ def main() -> None:
     cross_model_cochran = cochran_q(*full_defense_groups)
 
 
+    # 주 지표(2026-10-12): 정보 무결성 점수(INTACT 3 / PARTIAL 2 / BROKEN 1)의 1라운드 대 최종 라운드
+    info_score = {"INTACT": 3, "PARTIAL": 2, "BROKEN": 1}
+    first_info = {r["scenario_id"]: info_score[r["info_integrity"]] for r in first_round["results"] if r.get("info_integrity")}
+    last_info = {r["scenario_id"]: info_score[r["info_integrity"]] for r in last_round["results"] if r.get("info_integrity")}
+    info_ids = [sid for sid in first_info if sid in last_info]
+    wilcoxon_info = paired_wilcoxon([first_info[i] for i in info_ids], [last_info[i] for i in info_ids])
     output["stats"] = {
+        "wilcoxon_info_integrity_round1_vs_final": asdict(wilcoxon_info),
         "wilcoxon_v1_vs_final_healing_set": asdict(wilcoxon_result),
         "mannwhitney_healing_final_vs_held_out": asdict(mannwhitney_result),
         "chisquare_healing_final_vs_held_out": asdict(chi2_result),
@@ -392,6 +409,19 @@ def main() -> None:
     def _avg_score_std(results: list[dict]) -> float | None:
         vals = [r["score_std"] for r in results if r.get("score_std") is not None]
         return round(sum(vals) / len(vals), 3) if vals else None
+
+    # --- 주 지표: 정보 무결성 (2026-10-12 두 축 채점) ---
+    print("\n[정보 무결성 — 주 지표] 회차 | 응대 정책 | INTACT | PARTIAL | BROKEN | 무결 비율 | 핵심 범주 무결 비율 | 정책 준수 비율 | 정답 대조 BROKEN (심판관과 불일치)")
+    for d in output["healing_rounds"] + [output[k] for k in ("held_out", "adaptive_blackbox", "adaptive_whitebox")]:
+        ic = d.get("info_counts") or {}
+        print(
+            f"{d['label']:>17} | {d['srs_version']:>6} | {ic.get('INTACT', 0):>4} | {ic.get('PARTIAL', 0):>4} | "
+            f"{ic.get('BROKEN', 0):>4} | {d.get('info_intact_rate')}% | "
+            f"{'-' if d.get('core_info_intact_rate') is None else str(d['core_info_intact_rate']) + '%'} | "
+            f"{d.get('policy_compliant_rate')}% | {d.get('oracle_broken_count')} ({d.get('oracle_judge_disagree_count')})"
+        )
+    cm = output["cross_model"]
+    print(f"  교차 모델 정보 무결 비율: {cm.get('per_backend_info_intact_rate')} / 2개 이상 무결: {cm.get('info_validated_rate')}%")
 
     # --- 논문 §5.3 표 형식 요약 출력 (4단계 Level 체계, thesis.md §4.1.1) ---
     n_repeat_used = output.get("n_repeat", 1)
