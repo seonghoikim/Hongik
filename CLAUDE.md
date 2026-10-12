@@ -145,3 +145,7 @@
 - 예상 비용(캐싱+배치, 판정 이유 길이 제한 가정): 1단계 실측(핵심 3·보완 1·반복 5·3라운드) $4.0~7.1, 본 실행(핵심 6·보완 2·반복 5·5라운드·적응형 10) $11.3~20.1, 핵심 8이면 $13.9~24.8.
 - 1단계 실측 명령: `PYTHONPATH=src python3 scripts/run_experiment.py --mode real --batch --n-per-category 3 --n-supplementary 1 --n-repeat 5 --max-rounds 3 --adaptive-n 3 --save-attack-pool data/results/pool_pilot.json`
 - 남은 일: 분석 계획 사전 고정 문서(H1 정보 무결성 개선, H2 헬드아웃 비열등성, H3 교차 모델), 비열등성 검정 코드, 논문 3·4장에 두 축 채점·코드 판정·RAG 오염 범주 서술 반영, 발표 자료(thesis_visuals_all_v2.pptx) 용어 갱신.
+
+## 저자 요청 기록
+
+- (2026-10-12) 요약본 v7(재설계 반영) 내용을 다음 세션에서 저자에게 **설명·티칭**한다: 두 축 채점, 코드 판정, RAG 오염·허위 전제 문항, 2장 빈틈 ①~⑤의 논리, 예비 결과 재해석, 본 실험 가설. 저자가 교수님께 직접 설명할 수 있는 수준으로.
