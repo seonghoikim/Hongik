@@ -1,0 +1,388 @@
+--- p1
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+Scenario-based Modeling in AI Software Validation
+HONGIK UNIVERSITY
+SOFTWARE ENGINEERING LAB
+PRESENTOR: JANGHWAN KIM
+ADVISOR: Prof. R. YOUNG CHUL KIM
+
+--- p2
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+CONTENTS
+I.
+RESEARCH BACKGROUND
+II. RELATED WORKS
+I.
+State Machine Diagram
+II.
+Markov Decision Process
+III. Stochastic State Decision Process
+IV. Scenario-based Integration Testing
+III. Scenario-based Modeling in AI Software Validation
+IV. CONCLUSION
+
+--- p3
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+I.
+RESEARCH BACKGROUND
+
+--- p4
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+I.   RESEARCH BACKGROUND – The Booming of AI
+•
+The Booming of AI
+The current AI boom, driven by Large Language Models 
+(LLMs) and the  AI tools, underscores AI's 
+transformative power.
+AI becoming more accessible via user-friendly tools and 
+open-source models. 
+Despite this, AI software validation research, especially 
+for Reinforcement Learning (RL), remains insufficient.
+RL-based AI software is difficult to validate with 
+existing methods because the model's decision factors 
+change dynamically. 
+
+--- p5
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+I.   RESEARCH BACKGROUND – The Crucial Need for Validating AI Software
+• Why is AI Software Hard to Validate?
+Unlike traditional software, validating AI (especially RL) is complex due to its inherent 
+characteristics:
+1. Probabilistic & Non-Deterministic
+2. Black Box Problem
+3. Data-Driven Logic
+4. Dynamic & Adaptive
+5. Complex Environments
+6. Ambiguous "Correctness"
+
+--- p6
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+To address these limitations, we propose a Scenario-based Modeling in AI Software 
+Validation mechanism.
+This proposed approach is based on four key theories
+• State Machine Diagrams (SMDs).
+• Markov Decision Processes (MDPs).
+• Stochastic State Decision Processes (SSDPs).
+• Scenario-based Integration Testing (Kim’99).
+This approach offers an effective method to systematically validate all available 
+scenarios and prioritize scenarios for AI Software and increase testing productivity. 
+I.   RESEARCH BACKGROUND – Scenario-based Modeling in AI Software Validation (SBM)
+
+--- p7
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+II. RELATED WORKS
+
+--- p8
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+State Machine Diagrams (SMD):
+• Visually represent system states and 
+transitions.
+• Used in traditional validation to explore 
+system paths and derive test cases.
+II.   RELATED WORKS– State Machine Diagrams (SMD) & Markov Decision Process (MDP)
+Markov Decision Process (MDP):
+• A mathematical framework for sequential 
+decision-making, forming the theoretical 
+foundation for reinforcement learning.
+• Consists of States (S), Actions (A), 
+Transition Probabilities (P), Rewards (R), 
+and a Discount Factor (γ).
+MDP = (S, A, P, R, γ), s∈S, a∈A, (0≤γ≤1)
+
+--- p9
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+Stochastic State Decision Process (SSDP):
+• Analyzes and models system decisions 
+among various states, incorporating 
+stochastic elements.
+• Each state transition includes a probability 
+weight value (P) in addition to events, 
+guard conditions, and actions, enhancing 
+simulation accuracy and reflecting 
+probabilistic characteristics.
+II.   RELATED WORKS– State Machine Diagrams (SMD) & Markov Decision Process (MDP)
+
+--- p10
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+Scenario-based Integration Testing:
+• Utilize adaptive use case methodology to 
+improve the efficiency of scenario-based 
+integration testing in object-oriented 
+software development. 
+• Clarify executable scenarios composed of 
+"action units" and optimize the order of 
+scenario execution to improve test 
+productivity.
+II.   RELATED WORKS– State Machine Diagrams (SMD) & Markov Decision Process (MDP)
+
+--- p11
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Modeling in AI Software Validation
+
+--- p12
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Modeling in AI Software Validation Mechanism
+Scenario Generation Process
+•
+Create Initial Scenario Creation
+•
+Refine Scenario Decision Table 
+•
+Convert Scenario-based Tree
+•
+Transform Coverage-driven 
+strategy
+•
+Generate Test Case
+•
+Generate Event List
+•
+Prioritize Event List
+•
+Validating Test Case
+
+--- p13
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Model (SBM) 
+• In formula (6) represents the definition of a Scenario-
+Based Model (SBM) for AI software validation.
+• SBM consists of 'Scenarios', and each scenario is 
+defined as a set of states (S), actions (A), transition 
+probabilities (P), rewards (R), and discount factors (γ).
+• In formula (7) represents S stands for a set of states.
+• This set consists of followings:
+- the initial state (Sinitial),
+- intermediate state (Sintermediate), 
+- goal state (Sgoals), 
+- failure state (Sfails).
+
+--- p14
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Model (SBM) 
+• In formula (8) represents how failure is defined within 
+a scenario.
+• Failure is defined as the case where the AI ​software 
+fails to reach the goal state (Sgoals), in which case the 
+discount factor (γ) is set to -1.
+• In formula (9) represents A which is a set of actions
+that the AI ​software can perform in a specific state.
+• In formula (10) represents state-action probability 
+which is the probability that the next state (St+1) will be s′ 
+when the action (At) is performed in the current state (St).
+
+--- p15
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Model (SBM) 
+• In formula (11) represents the immediate reward or 
+penalty expected when performing an action (at) in the 
+current state (st).
+• Specifically, actions leading to the goal state (Sgoals) 
+are assigned a positive reward (+), and actions leading 
+to the failure state (Sfails) are assigned a negative 
+reward (penalty, -).
+• In formula (12) represents γ stands for the discount 
+factor which is an integer between -1 and 1, excluding 0.
+• A positive discount rate means that future rewards 
+have positive value. The larger γ, the more important 
+the future is.
+• 0 represents the immediate reward that does not consider 
+future rewards at all.
+• -1 represents as a "penalty" or "cost".
+• In formula (13) represents the product of 
+the probability of the path A→B (PAB) 
+and the sum of the reward of the current 
+state (RA) and the discounted reward of 
+the next state (γRB).
+
+--- p16
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Modeling in AI Software Validation Mechanism
+Step 1. Creation AI Software Scenario for Testing 
+•
+Each scenario describes the process of achieving the 
+system's functional goals and visually represents the 
+interactions between the system and its external 
+environment through a diagram.
+Step 2. Refine Scenarios with Decision Table
+•
+Refine scenarios generated in Step 1 using decision tables, 
+based on logical branching points and interaction 
+relationships for each state.
+•
+This helps to structure the system's internal decision-
+making logic and define system behavior under various 
+conditions.
+
+--- p17
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Modeling in AI Software Validation Mechanism
+Step 3. Convert Scenario-based Tree with Graph
+•
+Refine scenarios into a tree structure with common 
+starting points and branching points.
+•
+Each node in the tree represents an RL agent's 'state'.
+•
+Each edge represents an 'action' between agent states.
+•
+Use probabilistic methods to specify frequency-based 
+probability values on edges for actions, clearly 
+indicating the likelihood of an agent's action selection in 
+an uncertain environment.
+•
+This tree structure visually clarifies the various action 
+sequences and their outcomes an RL system can perform. 
+It also helps optimize RL-based AI software testing by 
+identifying the importance of each action choice.
+
+--- p18
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Modeling in AI Software Validation Mechanism
+Step 4. Generate Scenario-based Test Cases
+•
+Based on the tree structure and assigned probability 
+values from Step 3, we generate test cases.
+•
+These test cases include initial conditions, input values, 
+and expected system behaviors and outcomes, enabling 
+the reproduction of specific scenarios within a simulated 
+environment.
+Step 5. Convert to Executable Event List
+•
+Convert test cases (from Step 4) into an executable 
+sequential event list. 
+•
+Details external environment event timing and AI 
+software model responses.
+•
+Execute the test for validation
+
+--- p19
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Modeling in AI Software Validation Mechanism
+Step 4. Generate Scenario-based Test Cases
+•
+Based on the tree structure and assigned probability 
+values from Step 3, we generate test cases.
+•
+These test cases include initial conditions, input values, 
+and expected system behaviors and outcomes, enabling 
+the reproduction of specific scenarios within a simulated 
+environment.
+Step 5. Convert to Executable Event List
+•
+Convert test cases (from Step 4) into an executable 
+sequential event list. 
+•
+Details external environment event timing and AI 
+software model responses.
+•
+Execute the test for validation
+
+--- p20
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+III. Scenario-based Modeling in AI Software Validation Mechanism
+Step 6. Execute and Validate AI Software
+•
+From Step 5, Even list is filled with test cases.
+•
+AI software, equipped with a reinforcement learning model, to the actual simulation environment.
+•
+Utilize the generated sequential event list for validation.
+Validation focuses on:
+•
+Confirming the agent selects the correct 'action unit' under specific conditions.
+•
+Validating if the scenario leads to an expected 'successful termination (success)' or an 'undesirable 
+outcome (failure)'.
+
+--- p21
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+IV. Conclusion
+
+--- p22
+Hongik University 
+Software Engineering Laboratory
+The 20th Asia Pacific International Conference 
+on Information Science and Technology (APIC-IST 2025)
+IV. Conclusion
+Proposed approach
+•
+This paper introduced a Scenario-Based Model (SBM) validation mechanism for AI software, aiming to 
+overcome current validation challenges. Our proposed mechanism defines an SBM by integrating concepts 
+from Markov Decision Processes and Scenario-based Integration Testing.
+Key features of our approach include:
+•
+We explicit classification of state sets into initial, intermediate, goal, and even failure states.
+•
+We extend the discount factor (γ) to integers for specialized validation modeling.
+•
+We anticipate this mechanism will significantly enhance the AI software validation process by:
+•
+Developing automation techniques to reduce manual effort. 
+•
+Establishing coverage measurement metrics specifically for AI software validation.
+Ultimately, we hope our method provides a fundamental contribution to the field of AI software validation.
