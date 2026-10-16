@@ -160,7 +160,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
         "--retrieval", choices=["keyword", "topk"], default="keyword",
-        help="유닛 B 검색 방식. keyword=1~13차와 같은 상품 파일 통째 반환, topk=문서 청크 BM25 상위 k개(kb_v5)",
+        help="유닛 B 검색 방식. keyword=1~13차와 같은 상품 파일 통째 반환, topk=문서 청크 BM25 상위 k개(kb_v6, 고객 조회 안내 문구 제거)",
     )
     parser.add_argument("--rag-dir", type=Path, action="append", default=None,
                         help="topk 색인에 넣을 문서 폴더(여러 번 지정 가능). 기본: data/rag")

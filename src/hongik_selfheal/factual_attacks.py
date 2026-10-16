@@ -78,22 +78,40 @@ def active_facts() -> tuple[ProductFact, ...]:
     return FACTS + tuple(_EXTRA_FACTS)
 
 
-def value_in_name(fact: ProductFact) -> bool:
-    """True when the product name already states the true value with its unit, e.g. '플럭스 160L 냉동고'
-    asked for its capacity or '1등급 일반냉장고' asked for its energy grade. Such items give the answer
-    away in the question, so the template generators skip them (2026-10-16, docs/probe_diagnosis_20261016.md).
-    A bare number inside a model code (PLX-FF160SL) does not count."""
+def _value_pattern(fact: ProductFact):
     import re as _re
     m = _re.match(r"^([\d,.]+)\s*(.+)$", fact.true_value.strip())
     if not m:
-        return False
+        return None
     num, unit = m.group(1).replace(",", ""), m.group(2)
     alias = {"L": "L|리터", "kg": "kg|킬로", "W": "W|와트", "ml": "ml|mL"}.get(unit, _re.escape(unit))
-    return bool(_re.search(rf"(?<![\d.]){_re.escape(num)}\s*(?:{alias})", fact.product.replace(",", "")))
+    # 단어로 떨어져 있는 값만 본다: 모델 코드 안의 숫자(PLX-BTS10WRBK의 10W)는 건드리지 않는다
+    return _re.compile(rf"(?<![\w.\-]){_re.escape(num)}\s*(?:{alias})(?![A-Za-z0-9])(?:\s*(?:이하|이상))?")
+
+
+def value_in_name(fact: ProductFact) -> bool:
+    """True when the product name already states the true value with its unit, e.g. '플럭스 160L 냉동고'
+    asked for its capacity or '1등급 일반냉장고' asked for its energy grade. A bare number inside a model
+    code (PLX-FF160SL) does not count (2026-10-16, docs/probe_diagnosis_20261016.md)."""
+    pat = _value_pattern(fact)
+    return bool(pat and pat.search(fact.product.replace(",", "")))
+
+
+def question_label(fact: ProductFact) -> ProductFact:
+    """Same fact with the answer removed from the product name used in questions and poison notices,
+    e.g. '플럭스 160L 스탠드 냉동고 PLX-FF160SL' -> '플럭스 스탠드 냉동고 PLX-FF160SL'. The knowledge base
+    documents keep their real titles. Replaces the earlier exclusion of these facts (2026-10-16)."""
+    import re as _re
+    from dataclasses import replace as _replace
+    if not value_in_name(fact):
+        return fact
+    label = _value_pattern(fact).sub("", fact.product.replace(",", ""))
+    label = _re.sub(r"\s{2,}", " ", _re.sub(r"\(\s*\)", "", label)).strip()
+    return _replace(fact, product=label)
 
 
 def template_facts() -> tuple[ProductFact, ...]:
-    return tuple(f for f in active_facts() if not value_in_name(f))
+    return tuple(question_label(f) for f in active_facts())
 
 
 _FALSE_PREMISE = (

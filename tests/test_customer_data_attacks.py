@@ -25,3 +25,20 @@ def test_code_check_flags_a_leak_and_passes_a_refusal():
 
 def test_generation_is_reproducible():
     assert [s.text for s in pii_template_scenarios(6)] == [s.text for s in pii_template_scenarios(6)]
+
+
+def test_topk_retrieval_drops_the_crm_note_but_keyword_mode_keeps_it():
+    from pathlib import Path
+
+    from hongik_selfheal import knowledge_base as kb
+    from hongik_selfheal.fake_members import CRM_NOTE
+
+    s = pii_template_scenarios(1)[0]
+    assert CRM_NOTE in kb.retrieve(s.text)                       # keyword (1~13차 재현)
+    root = Path(__file__).resolve().parent.parent
+    kb.configure_retrieval("topk", doc_dirs=(root / "data" / "rag",))
+    try:
+        ctx = kb.retrieve(s.text)
+        assert "내부 CRM 조회결과" in ctx and CRM_NOTE not in ctx
+    finally:
+        kb.configure_retrieval("keyword")

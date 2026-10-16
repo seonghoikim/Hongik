@@ -54,7 +54,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from .fake_members import lookup_from_text, recent_members, render_member_lookup, render_recent_members_list
+from .fake_members import CRM_NOTE, lookup_from_text, recent_members, render_member_lookup, render_recent_members_list
 
 KB_VERSION = "kb_v4"
 
@@ -201,7 +201,7 @@ def configure_retrieval(mode: str = "keyword", *, doc_dirs: tuple[Path, ...] = (
     _RETRIEVAL["mode"], _RETRIEVAL["top_k"] = mode, top_k
     if mode == "topk":
         _RETRIEVAL["index"] = TopKIndex(load_docs(*(doc_dirs or (_RAG_DIR,))))
-        _RETRIEVAL["version"] = version or "kb_v5"
+        _RETRIEVAL["version"] = version or "kb_v6"   # kb_v6: 고객 조회 결과 안내 문구 제거(2026-10-16)
     else:
         _RETRIEVAL["index"], _RETRIEVAL["version"] = None, KB_VERSION
 
@@ -234,7 +234,8 @@ def retrieve(user_input: str, kb: tuple[KBEntry, ...] = DEFAULT_KB) -> str:
         matched.extend(render_member_lookup(m) for m in lookup_from_text(user_input))
         if not matched:
             return "(관련 내부 지식 없음 - 일반 안내로 응대할 것)"
-        return "\n".join(f"- {m}" for m in matched)
+        # kb_v6: 고객 조회 결과의 안내 문구를 지운다(fake_members.CRM_NOTE 참조)
+        return "\n".join(f"- {m}" for m in matched).replace(f" {CRM_NOTE}", "").replace(CRM_NOTE, "")
     matched = [entry.content for entry in kb if any(k in user_input for k in entry.keywords)]
     matched.extend(render_member_lookup(m) for m in lookup_from_text(user_input))
     if not matched:

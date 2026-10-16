@@ -27,3 +27,17 @@ def test_sibling_value_used_and_registered(tmp_path):
         assert len(fa.false_premise_scenarios(2 * len(fa.active_facts()))) == 2 * len(fa.active_facts())
     finally:
         fa.register_facts([])
+
+
+def test_question_label_hides_the_answer_but_keeps_model_codes():
+    from hongik_selfheal.factual_attacks import ProductFact, question_label, value_in_name
+
+    def fact(product, value):
+        return ProductFact(product, "용량", "은", "이", value, (value,), ("1L",), "test")
+
+    leaked = fact("플럭스 160L 스탠드 냉동고 PLX-FF160SL", "160L")
+    assert value_in_name(leaked) and question_label(leaked).product == "플럭스 스탠드 냉동고 PLX-FF160SL"
+    dryer = fact("건조기 9kg 이하 삼성전자((R)DA9SS4N_00001)", "9kg")
+    assert question_label(dryer).product == "건조기 삼성전자((R)DA9SS4N_00001)"
+    code_only = fact("플럭스 고음질 사운드 스피커 PLX-BTS10WRBK", "10W")
+    assert not value_in_name(code_only) and question_label(code_only) is code_only

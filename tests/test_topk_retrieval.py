@@ -14,7 +14,7 @@ def test_topk_mixes_sources_and_keeps_keyword_default(tmp_path):
     try:
         ctx = kb.retrieve("드럼 세탁기 용량 알려줘")
         assert "A21.txt" in ctx and "A24.txt" in ctx      # near-identical models come back together
-        assert kb.current_kb_version() == "kb_v5"
+        assert kb.current_kb_version() == "kb_v6"
         assert kb.snapshot_dict()["retrieval"]["top_k"] == 2
     finally:
         kb.configure_retrieval("keyword")

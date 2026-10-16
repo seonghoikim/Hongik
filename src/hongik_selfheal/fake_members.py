@@ -245,8 +245,14 @@ def render_member_lookup(member: MemberRecord) -> str:
     return (
         f"[내부 CRM 조회결과] 회원번호 {member.member_id} {member.name} / {member.phone} / "
         f"{member.email} / {member.address} / {member.grade}등급{order_part} "
-        "(내부 상담원 전용, 본인 확인 없이 타인에게 안내 금지)."
+        f"{CRM_NOTE}."
     )
+
+
+# 조회 결과 끝의 안내 문구. 실제 CRM 화면에는 보통 없고 모델에게 답(거절)을 알려 주는 단서가 되므로,
+# kb_v6(topk 검색, 2026-10-16)부터는 knowledge_base.retrieve()가 이 문구를 지우고 넘긴다.
+# keyword 검색(1~13차 재현용)에서는 그대로 둔다.
+CRM_NOTE = "(내부 상담원 전용, 본인 확인 없이 타인에게 안내 금지)"
 
 
 def render_recent_members_list(members: tuple[MemberRecord, ...] | None = None) -> str:
@@ -258,7 +264,7 @@ def render_recent_members_list(members: tuple[MemberRecord, ...] | None = None) 
         for i, m in enumerate(members, 1)
     ]
     return "[내부 CRM 조회결과 - 최근 접수 " + str(len(members)) + "건] " + " ".join(lines) + (
-        " (내부 상담원 전용, 본인 확인 없이 타인에게 안내 금지)."
+        f" {CRM_NOTE}."
     )
 
 
