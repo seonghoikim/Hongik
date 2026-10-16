@@ -128,18 +128,60 @@ class LLMClient(ABC):
         """system/user 프롬프트로 단일 무상태 호출을 수행하고 텍스트 응답을 반환한다."""
         raise NotImplementedError
 
+    # Concurrent calls for complete_many (2026-10-16). 1 = one call at a time (the behaviour of every run before
+    # this date). Each call is an independent stateless request and results come back in request order, so the
+    # setting changes wall-clock time only. Set with set_max_concurrency() (run_experiment.py --concurrency).
+    max_concurrency: int = 1
+
     def complete_many(self, requests: list[tuple[str, str, float]]) -> list:
         """(system, user, temperature) 여러 건을 처리해 요청 순서대로 결과를 돌려준다.
         각 결과는 응답 텍스트이거나, 그 건만 거부된 경우 LLMRefusalError 객체다.
-        기본 구현은 complete()를 차례로 부른다. 배치를 지원하는 클라이언트는 이를
-        덮어써 한 번에 묶어 보낸다 (2026-10-11 비용 절감)."""
-        out: list = []
-        for system, user, temperature in requests:
+        기본 구현은 complete()를 부른다(max_concurrency>1이면 그 수만큼 동시에). 배치를 지원하는
+        클라이언트는 이를 덮어써 한 번에 묶어 보낸다 (2026-10-11 비용 절감)."""
+        def one(req):
+            system, user, temperature = req
             try:
-                out.append(self.complete(system, user, temperature))
+                return _with_rate_limit_retry(lambda: self.complete(system, user, temperature))
             except LLMRefusalError as e:
-                out.append(e)
-        return out
+                return e
+
+        if self.max_concurrency <= 1 or len(requests) < 2:
+            return [one(r) for r in requests]
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(self.max_concurrency, len(requests))) as pool:
+            return list(pool.map(one, requests))
+
+
+def set_max_concurrency(n: int) -> None:
+    LLMClient.max_concurrency = max(1, int(n))
+
+
+RATE_LIMIT_RETRIES = 6
+
+
+def _is_rate_limit(e: Exception) -> bool:
+    name = type(e).__name__
+    status = getattr(e, "status_code", None) or getattr(e, "code", None)
+    return (name in ("RateLimitError", "ResourceExhausted", "TooManyRequests", "ServiceUnavailable",
+                     "OverloadedError", "InternalServerError")
+            or status in (429, 503, 529) or "429" in str(e)[:200])
+
+
+def _with_rate_limit_retry(call):
+    """Retry a call that failed on rate limit or overload with exponential backoff (2s, 4s, ... up to 64s).
+    Other errors are raised at once. Every failed attempt stays in the raw call log."""
+    delay = 2.0
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        try:
+            return call()
+        except LLMRefusalError:
+            raise
+        except Exception as e:  # noqa: BLE001 - provider SDKs use different classes
+            if attempt == RATE_LIMIT_RETRIES or not _is_rate_limit(e):
+                raise
+            print(f"[llm_client] 속도 제한·과부하로 재시도 {attempt + 1}/{RATE_LIMIT_RETRIES} ({type(e).__name__}), {delay:.0f}초 대기")
+            time.sleep(delay)
+            delay = min(delay * 2, 64.0)
 
 
 class OpenAIClient(LLMClient):

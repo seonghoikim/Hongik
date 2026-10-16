@@ -48,7 +48,7 @@ from hongik_selfheal.cost_estimate import HIGH, LOW, estimate_run, format_estima
 from hongik_selfheal.experiment import GRADE_ORDER, Checkpoint, run_full_experiment, save_experiment_output  # noqa: E402
 from hongik_selfheal.fake_members import FAKE_MEMBERS, MEMBERS_VERSION, save_members_snapshot  # noqa: E402
 from hongik_selfheal.knowledge_base import configure_retrieval, current_kb_version, save_kb_snapshot  # noqa: E402
-from hongik_selfheal.llm_client import build_ensemble_pool  # noqa: E402
+from hongik_selfheal.llm_client import build_ensemble_pool, set_max_concurrency  # noqa: E402
 from hongik_selfheal.srs import initial_srs_v1, initial_srs_v2_with_5w1h  # noqa: E402
 from hongik_selfheal.stats import (  # noqa: E402
     chi_square_independence,
@@ -144,6 +144,11 @@ def parse_args() -> argparse.Namespace:
         "--exclude-pool", action="append", default=[],
         help="이전 공격 풀 파일(글롭, 여러 번 지정). 그 풀의 질문 문장·사실·가상 회원을 템플릿 문항에서 건너뛰고, "
         "풀을 만든 뒤 겹침이 0개가 아니면 실행하지 않는다(probe_difficulty.py와 같음)",
+    )
+    parser.add_argument(
+        "--concurrency", type=int, default=1,
+        help="배치를 쓰지 않는 호출을 동시에 몇 건씩 보낼지(기본 1 = 한 건씩, 2026-10-16 이전과 같음). "
+        "호출은 서로 독립이고 결과는 요청 순서대로 모으므로 걸리는 시간만 달라진다",
     )
     parser.add_argument("--resume-reason", default=None,
                         help="이어가는 이유(인프라 오류 내용). --resume-checkpoint와 함께 쓴다")
@@ -285,6 +290,7 @@ def main() -> None:
     if mode == "mock":
         # Keep mock output out of the real-results folder (program review 2026-10-11).
         results_dir = results_dir / "mock"
+    set_max_concurrency(args.concurrency)
     checkpoint = None
     if args.resume_checkpoint is not None:
         if not args.resume_reason:
@@ -377,6 +383,7 @@ def main() -> None:
         "temperatures": [config.llm_temperature, config.judge_temperature],
     }
     meta = {"run_id": run_id, "attack_pool_file": str(args.attack_pool_file), "exclude_pool_files": exclude_files,
+            "concurrency": args.concurrency,
             "attack_pool_sha256": hashlib.sha256(Path(args.attack_pool_file).read_bytes()).hexdigest(),
             "settings": settings}
     if checkpoint is not None:
@@ -414,6 +421,7 @@ def main() -> None:
     output["attack_pool_sha256"] = meta["attack_pool_sha256"]
     output["checkpoint_file"] = str(checkpoint.path)
     output["n_primary"] = args.n_primary
+    output["concurrency"] = args.concurrency
     output["exclude_pool_files"] = checkpoint.data["meta"].get("exclude_pool_files", [])
     _finish(args, output, config, mode, results_dir, run_id, call_logger=call_logger)
 

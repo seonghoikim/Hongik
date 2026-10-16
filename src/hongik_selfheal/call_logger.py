@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -49,11 +50,14 @@ class CallLogger:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._fh = self.path.open("a", encoding="utf-8")
         self._records: list[CallRecord] = []
+        self._lock = threading.Lock()   # concurrent calls (2026-10-16)
 
     def log(self, record: CallRecord) -> None:
-        self._records.append(record)
-        self._fh.write(json.dumps(asdict(record), ensure_ascii=False) + "\n")
-        self._fh.flush()
+        line = json.dumps(asdict(record), ensure_ascii=False) + "\n"
+        with self._lock:
+            self._records.append(record)
+            self._fh.write(line)
+            self._fh.flush()
 
     def close(self) -> None:
         self._fh.close()

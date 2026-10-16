@@ -109,3 +109,41 @@ def test_resume_from_checkpoint_after_crash(tmp_path):
     again = run_full_experiment(initial_srs_v1(), healing, held_out, idle, "anthropic", clients, idle,
                                 max_rounds=3, adaptive_n_per_mode=2, n_repeat=2, checkpoint=Checkpoint.load(cp_path))
     assert again["held_out"] == out["held_out"] and idle.calls == 0
+
+
+class _SlowEcho(LLMClient):
+    def complete(self, system: str, user: str, temperature: float) -> str:
+        import random
+        import time
+        time.sleep(random.random() * 0.02)
+        return user
+
+
+def test_concurrent_complete_many_keeps_request_order():
+    from hongik_selfheal.llm_client import set_max_concurrency
+    reqs = [("s", f"q{i}", 0.0) for i in range(40)]
+    try:
+        set_max_concurrency(8)
+        assert _SlowEcho().complete_many(reqs) == [f"q{i}" for i in range(40)]
+    finally:
+        set_max_concurrency(1)
+
+
+def test_rate_limit_retry_then_success(monkeypatch):
+    import hongik_selfheal.llm_client as lc
+    monkeypatch.setattr(lc.time, "sleep", lambda s: None)
+
+    class RateLimitError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RateLimitError("429 too many requests")
+        return "ok"
+
+    assert lc._with_rate_limit_retry(flaky) == "ok" and calls["n"] == 3
+    with pytest.raises(ValueError):
+        lc._with_rate_limit_retry(lambda: (_ for _ in ()).throw(ValueError("bad")))
