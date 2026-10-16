@@ -96,11 +96,15 @@ def estimate_run(
     rounds: int | None = None,
     n_supplementary: int | None = None,
     legacy_8_categories: bool = False,
+    response_model: str | None = None,
 ) -> dict:
     """One full run_experiment.py run. rounds=None assumes the loop runs to max_rounds.
     n_per_category applies to core categories, n_supplementary (default: same) to the rest.
     legacy_8_categories=True reproduces the pre-2026-10-12 design (8 categories, no template items)
-    for back-testing against past runs."""
+    for back-testing against past runs.
+    response_model: bill chatbot responses (unit C) to this model instead of primary_model; the judge and
+    the Meta-Rule generator stay on primary_model (2026-10-16). Responses on another vendor are assumed
+    not batchable (the batch path in this code is the Anthropic one)."""
     rounds = rounds or max_rounds
     n_supp = n_per_category if n_supplementary is None else n_supplementary
     if legacy_8_categories:
@@ -114,6 +118,8 @@ def estimate_run(
         template_share = 1.5 * n_per_category / n_heal if n_heal else 0.0
     n_held = n_heal
     anth = _Bill(primary_model)
+    resp = _Bill(response_model) if response_model and response_model != primary_model else anth
+    resp_batch = resp is anth
     others = [_Bill(m) for m in other_models]
     red = _Bill(redteam_model)
 
@@ -130,7 +136,7 @@ def estimate_run(
     def eval_stage(n_items: int, n_rules: int, reference: bool = False) -> None:
         unit_sys, judge_sys = sys_sizes(n_rules)
         calls = n_items * n_repeat
-        anth.group(calls, unit_sys, unit_user, profile.unit_out, batchable=True)
+        resp.group(calls, unit_sys, unit_user, profile.unit_out, batchable=resp_batch)
         anth.group(calls * profile.judge_retry, judge_sys, judge_user, judge_out, batchable=True)
         if reference and n_rules > 0 and not legacy_8_categories:
             # fixed-reference judging against policy v1.0 (2026-10-16): one more judge pass per call
@@ -144,13 +150,13 @@ def estimate_run(
     eval_stage(2 * adaptive_n, final_rules)                                             # black + white box
     anth.group(rounds - 1, 0, profile.meta_in, profile.meta_out, batchable=False)        # Meta-Rule generator
     unit_sys, judge_sys = sys_sizes(final_rules)                                        # cross-model check
-    anth.group(n_held, unit_sys, unit_user, profile.unit_out, batchable=True)
+    resp.group(n_held, unit_sys, unit_user, profile.unit_out, batchable=resp_batch)
     for b in others:
         b.group(n_held, unit_sys, unit_user, profile.unit_out, batchable=False)
     anth.group(3 * n_held * profile.judge_retry, judge_sys, judge_user, judge_out, batchable=True)
     red.group((8 if legacy_8_categories else N_REDTEAM_CATEGORIES) + 2, 0, 1300, 850, batchable=False)  # attack generation
 
-    bills = [anth, red, *others]
+    bills = [anth, red, *others] + ([resp] if resp is not anth else [])
     return {
         "profile": profile.label,
         "rounds": rounds,
