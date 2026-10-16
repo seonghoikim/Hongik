@@ -29,7 +29,7 @@ def load_config() -> Config:
         openai_model=os.getenv("OPENAI_MODEL", "gpt-5.4"),
         gemini_api_key=os.getenv("GEMINI_API_KEY") or None,
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.6-flash"),
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY") or None,
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY") or os.getenv("HONGIK_ANTHROPIC_API_KEY") or None,
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5"),
         llm_temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
         judge_temperature=float(os.getenv("JUDGE_TEMPERATURE", "0")),
