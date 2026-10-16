@@ -3,8 +3,9 @@
 
 서식은 thesis_summary_visual_v8.docx를 틀로 쓴다: 제목 두 줄과 쪽 설정, 장·절 제목 스타일, 본문·캡션·
 참고문헌 문단의 서식을 그대로 복사하고, 본문 내용은 md에서 새로 채운다. 목차는 md의 장·절 제목으로 만든다.
+2026-10-16 수정: 그림은 원래 크기로 넣고(글자 축소 방지), 표 칸은 상하·좌우 가운데 정렬.
 
-    python3 scripts/summary_md_to_docx.py docs/summary_review_v14.md thesis_summary_visual_v9.docx
+    python3 scripts/summary_md_to_docx.py docs/summary_review_v19.md thesis_summary_visual_v14.docx
 """
 import copy
 import os
@@ -12,11 +13,11 @@ import re
 import sys
 
 import docx
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Emu, Pt
+from docx.shared import Emu, Inches, Pt
 
 ROOT = "/home/user/hongik"
 TEMPLATE = os.path.join(ROOT, "thesis_summary_visual_v8.docx")
@@ -90,7 +91,10 @@ def main(md_path: str, out_name: str) -> None:
             for j, val in enumerate(row):
                 cell = t.cell(i, j)
                 cell.text = ""
+                cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
                 p = cell.paragraphs[0]
+                # 표는 상하·좌우 가운데 정렬. 긴 문장(40자 초과) 칸만 좌우는 왼쪽 정렬로 둔다
+                p.alignment = WD_ALIGN_PARAGRAPH.LEFT if len(val) > 40 else WD_ALIGN_PARAGRAPH.CENTER
                 for tx, opt in runs_of(val):
                     r = p.add_run(tx)
                     r.font.size = Pt(9)
@@ -139,10 +143,16 @@ def main(md_path: str, out_name: str) -> None:
             p = para([], kind="img", align=WD_ALIGN_PARAGRAPH.CENTER)
             path = os.path.normpath(os.path.join(md_dir, m.group(1)))
             from PIL import Image
-            w, h = Image.open(path).size
-            # 세로로 긴 그림은 폭을 줄여 한 쪽을 다 차지하지 않게 한다
-            scale = 1.0 if h / w < 0.6 else (0.8 if h / w < 0.9 else 0.65)
-            p.add_run().add_picture(path, width=int(text_width * scale))
+            im = Image.open(path)
+            w, h = im.size
+            # 그림은 그린 크기(PNG의 dpi 정보) 그대로 넣어 글자 크기가 줄지 않게 한다.
+            # 본문 폭보다 크면 본문 폭에 맞추고, 높이는 7.5인치를 넘지 않게 한다.
+            dpi = (im.info.get("dpi") or (160, 160))[0]
+            native = Inches(w / dpi)
+            if dpi < 200:                  # 발표 그림(160dpi, 슬라이드 글자 크기)은 0.55배로 넣어 본문 글자와 맞춘다
+                native = int(native * 0.55)
+            width = min(int(text_width), int(native), int(Inches(7.5) * w / h))
+            p.add_run().add_picture(path, width=width)
             i += 1
             continue
         if ln.startswith("# "):
