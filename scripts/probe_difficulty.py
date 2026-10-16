@@ -81,6 +81,8 @@ def main() -> None:
     ap.add_argument("--crawled-facts", type=Path, default=None,
                         help="수집 색인(data/rag/crawled/scan_index.jsonl)에서 정답 있는 사실을 만들어 허위 전제·RAG 오염 문항에 추가")
     ap.add_argument("--attack-pool-file", type=Path, default=None)
+    ap.add_argument("--refresh-templates", action="store_true",
+                    help="공격 풀 파일의 템플릿 문항(정답 있는 문항)만 현재 생성기로 같은 개수만큼 다시 만든다(2026-10-16 재탐색)")
     ap.add_argument("--batch", action="store_true")
     args = ap.parse_args()
 
@@ -101,6 +103,13 @@ def main() -> None:
     targets = category_targets(args.n_per_category, args.n_supplementary)
     if args.attack_pool_file:
         pool = load_pool(args.attack_pool_file)
+        if args.refresh_templates:
+            from hongik_selfheal.factual_attacks import false_premise_scenarios, rag_poisoning_scenarios
+            n_fp = sum(1 for s in pool if s.oracle and s.category == "misinformation")
+            n_rp = sum(1 for s in pool if s.oracle and s.category == "rag_poisoning")
+            pool = [s for s in pool if not s.oracle] + false_premise_scenarios(n_fp) + rag_poisoning_scenarios(n_rp)
+            save_pool(pool, out_dir / f"attack_pool_{run_id}.json")
+            print(f"템플릿 문항 갱신: 허위 전제 {n_fp}개, RAG 오염 {n_rp}개")
     else:
         pool = generate_full_pool({k: 2 * v for k, v in targets.items()}, llm_client=clients[args.redteam_provider])
         save_pool(pool, out_dir / f"attack_pool_{run_id}.json")

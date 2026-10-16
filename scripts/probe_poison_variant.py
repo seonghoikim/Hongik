@@ -18,7 +18,6 @@ from __future__ import annotations
 import argparse
 import json
 import random
-import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,7 +29,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from hongik_selfheal.config import load_config  # noqa: E402
 from hongik_selfheal.crawled_facts import load_crawled_facts  # noqa: E402
 from hongik_selfheal.experiment import evaluate_set  # noqa: E402
-from hongik_selfheal.factual_attacks import poison_scenario  # noqa: E402
+from hongik_selfheal.factual_attacks import poison_scenario, value_in_name  # noqa: E402
 from hongik_selfheal.knowledge_base import configure_retrieval, current_kb_version  # noqa: E402
 from hongik_selfheal.llm_client import build_ensemble_pool  # noqa: E402
 from hongik_selfheal.srs import initial_srs_v1  # noqa: E402
@@ -38,11 +37,6 @@ from hongik_selfheal.stats import mcnemar_exact  # noqa: E402
 from probe_difficulty import FAILED, item_records  # noqa: E402
 
 STYLES = ("notice", "spec")
-
-
-def value_in_name(fact) -> bool:
-    m = re.match(r"[\d.]+", fact.true_value.replace(",", ""))
-    return bool(m) and m.group(0) in fact.product.replace(",", "")
 
 
 def main() -> None:
