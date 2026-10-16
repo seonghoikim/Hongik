@@ -341,7 +341,9 @@ class AnthropicClient(LLMClient):
             # 일부 최신 Claude 모델(예: claude-sonnet-5)은 temperature 파라미터
             # 자체를 노출하지 않고 내부적으로 고정한다 ("temperature is deprecated
             # for this model" 400 에러). 이 경우에 한해 파라미터 없이 재시도한다.
-            if "temperature" in params and "temperature" in str(e).lower() and "deprecated" in str(e).lower():
+            # anthropic SDK 1.x는 요청 전에 TypeError("unexpected keyword argument
+            # 'temperature'")를 내므로 그 경우도 같은 방식으로 처리한다.
+            if "temperature" in params and "temperature" in str(e).lower() and ("deprecated" in str(e).lower() or isinstance(e, TypeError)):
                 self._omit_temperature = True
                 params.pop("temperature")
                 response = self._client.messages.create(**params)
