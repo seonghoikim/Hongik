@@ -107,6 +107,13 @@ def parse_args() -> argparse.Namespace:
         help="자가 치유/헬드아웃/적응형 재공격(Unit C·심판관·Meta-Rule 생성기)에 쓸 단일 주 모델",
     )
     parser.add_argument(
+        "--response-provider",
+        choices=["openai", "gemini", "anthropic"],
+        default=None,
+        help="챗봇 응답(Unit C)만 이 모델로 만든다. 심판관·Meta-Rule 생성기는 --primary-provider 그대로. "
+        "없으면 주 모델이 응답까지 맡는다(1~13차와 같음). 분석 계획 v3: 고객사 운영 모델(gemini)",
+    )
+    parser.add_argument(
         "--redteam-provider",
         choices=["openai", "gemini", "anthropic"],
         default="openai",
@@ -223,6 +230,12 @@ def _is_core_category(category: str) -> bool:
     return category in CORE_KEYS
 
 
+def _is_primary_category(category: str) -> bool:
+    # 분석 계획 v2: H1~H3의 주 지표 범주(RAG 오염·개인정보 유출)
+    from hongik_selfheal.attack_taxonomy import PRIMARY_KEYS
+    return category in PRIMARY_KEYS
+
+
 def main() -> None:
     args = parse_args()
     config = load_config()
@@ -230,7 +243,8 @@ def main() -> None:
 
     if args.estimate_cost or mode == "real":
         models = {"anthropic": config.anthropic_model, "openai": config.openai_model, "gemini": config.gemini_model}
-        others = tuple(m for p, m in models.items() if p != args.primary_provider)
+        response_provider = args.response_provider or args.primary_provider
+        others = tuple(m for p, m in models.items() if p != response_provider)
         initial = initial_srs_v1() if args.srs_variant == "baseline" else initial_srs_v2_with_5w1h()
         estimates = [
             estimate_run(
@@ -238,6 +252,7 @@ def main() -> None:
                 adaptive_n=args.adaptive_n, n_repeat=args.n_repeat, n_supplementary=args.n_supplementary,
                 primary_model=models[args.primary_provider], other_models=others,
                 redteam_model=models[args.redteam_provider], profile=profile,
+                response_model=models[response_provider],
             )
             for profile in (LOW, HIGH)
         ]
@@ -272,9 +287,12 @@ def main() -> None:
     cross_model_clients = build_ensemble_pool(config, force_provider=mode, logger=call_logger, batch=args.batch)
     primary_client = cross_model_clients[args.primary_provider]
     redteam_client = cross_model_clients[args.redteam_provider]
+    response_client = (cross_model_clients[args.response_provider]
+                       if args.response_provider and args.response_provider != args.primary_provider else None)
 
     print(
         f"[run_experiment] mode={mode} primary={args.primary_provider} "
+        f"response={args.response_provider or args.primary_provider} "
         f"redteam={args.redteam_provider} cross_model_backends={list(cross_model_clients)} batch={args.batch}"
     )
 
@@ -320,6 +338,7 @@ def main() -> None:
         judge_temperature=config.judge_temperature,
         n_repeat=args.n_repeat,
         checkpoint_path=checkpoint_path,
+        response_client=response_client,
     )
 
     # --- 통계 검정 (thesis.md §3.5.3) ---
@@ -372,24 +391,27 @@ def main() -> None:
     last_info = {r["scenario_id"]: info_score[r["info_integrity"]] for r in last_round["results"] if r.get("info_integrity")}
     info_ids = [sid for sid in first_info if sid in last_info]
     wilcoxon_info = paired_wilcoxon([first_info[i] for i in info_ids], [last_info[i] for i in info_ids])
-    # 사전 고정 분석(docs/analysis_plan_20261016.md): 핵심 범주, 문항 단위 이분 결과(1=정보 무결성 유지).
-    def _core_intact(rs, key):
-        return {r["scenario_id"]: int(r[key] == "INTACT") for r in rs if r.get("core") and r.get(key)}
-    h1_a = _core_intact(first_round["results"], "ref_info_integrity")
-    h1_b = _core_intact(last_round["results"], "ref_info_integrity")
+    # 사전 고정 분석(docs/analysis_plan_20261016_v2.md): 주 지표 범주(RAG 오염·개인정보 유출),
+    # 문항 단위 이분 결과(1=정보 무결성 유지).
+    def _primary_intact(rs, key):
+        return {r["scenario_id"]: int(r[key] == "INTACT")
+                for r in rs if _is_primary_category(r.get("category", "")) and r.get(key)}
+    h1_a = _primary_intact(first_round["results"], "ref_info_integrity")
+    h1_b = _primary_intact(last_round["results"], "ref_info_integrity")
     h1_ids = [i for i in h1_a if i in h1_b]
     h1 = mcnemar_exact([h1_a[i] for i in h1_ids], [h1_b[i] for i in h1_ids])
-    h2_heal = list(_core_intact(last_round["results"], "info_integrity").values())
-    h2_held = list(_core_intact(output["held_out"]["results"], "info_integrity").values())
+    h2_heal = list(_primary_intact(last_round["results"], "info_integrity").values())
+    h2_held = list(_primary_intact(output["held_out"]["results"], "info_integrity").values())
     h2 = (noninferiority_two_proportions(sum(h2_heal), len(h2_heal), sum(h2_held), len(h2_held), margin=0.10)
           if h2_heal and h2_held else None)
-    core_cross = [r for r in cross_model_results if r.get("category") and _is_core_category(r["category"])]
-    h3_groups = [[int(r.get("backend_info_integrity", {}).get(p) == "INTACT") for r in core_cross] for p in providers]
-    h3 = cochran_q(*h3_groups) if core_cross else None
+    primary_cross = [r for r in cross_model_results if _is_primary_category(r.get("category", ""))]
+    h3_groups = [[int(r.get("backend_info_integrity", {}).get(p) == "INTACT") for r in primary_cross] for p in providers]
+    h3 = cochran_q(*h3_groups) if primary_cross else None
     preregistered = {
-        "H1_core_info_intact_round1_vs_final_mcnemar(v1.0 기준 채점)": asdict(h1),
-        "H2_core_info_intact_heldout_noninferiority_10pp": asdict(h2) if h2 else None,
-        "H3_core_info_intact_cross_model_cochranq": asdict(h3) if h3 else None,
+        "primary_categories": list(__import__("hongik_selfheal.attack_taxonomy", fromlist=["PRIMARY_KEYS"]).PRIMARY_KEYS),
+        "H1_primary_info_intact_round1_vs_final_mcnemar(v1.0 기준 채점)": asdict(h1),
+        "H2_primary_info_intact_heldout_noninferiority_10pp": asdict(h2) if h2 else None,
+        "H3_primary_info_intact_cross_model_cochranq": asdict(h3) if h3 else None,
         "order": "H1 → H2 → H3 고정 순서 검정(앞 가설이 유의할 때만 다음 가설을 확증적으로 해석)",
     }
     output["stats"] = {
@@ -408,6 +430,8 @@ def main() -> None:
     output["srs_variant"] = args.srs_variant
     output["mode"] = mode
     output["primary_provider"] = args.primary_provider
+    output["response_provider"] = args.response_provider or args.primary_provider
+    output["models"] = {"anthropic": config.anthropic_model, "openai": config.openai_model, "gemini": config.gemini_model}
     output["anthropic_batch"] = args.batch
     output["redteam_provider"] = args.redteam_provider
     output["cross_model_backends"] = providers
