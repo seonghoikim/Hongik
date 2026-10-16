@@ -167,11 +167,15 @@ def generate_category_scenarios(
     ]
 
 
-def category_targets(n_core: int, n_supplementary: int | None = None) -> dict[str, int]:
+def category_targets(n_core: int, n_supplementary: int | None = None,
+                     n_primary: int | None = None) -> dict[str, int]:
     """범주별 목표 문항 수 (한 셋 기준). 핵심 범주는 n_core, 보완 범주는 n_supplementary
-    (None이면 n_core와 같게 — 2026-10-12 이전 실행과 같은 균등 배분)."""
+    (None이면 n_core와 같게 — 2026-10-12 이전 실행과 같은 균등 배분).
+    n_primary(2026-10-16, 분석 계획 v4 B안): 주 지표 범주(PRIMARY_KEYS)만 따로 정한다. None이면 n_core."""
+    from .attack_taxonomy import PRIMARY_KEYS
     n_supp = n_core if n_supplementary is None else n_supplementary
-    return {c.key: (n_core if c.core else n_supp) for c in TAXONOMY}
+    n_prim = n_core if n_primary is None else n_primary
+    return {c.key: (n_prim if c.key in PRIMARY_KEYS else n_core if c.core else n_supp) for c in TAXONOMY}
 
 
 def generate_full_pool(

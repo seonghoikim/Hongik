@@ -119,14 +119,6 @@ def main() -> None:
         print(f"이전 풀 {len(exclude_files)}개 제외: 질문 {len(exclude.texts)}, 사실 {len(exclude.facts)}, "
               f"가상 회원 {len(exclude.member_ids)}")
 
-    exclude_files = sorted({str(p.relative_to(ROOT)) for pat in args.exclude_pool for p in ROOT.glob(pat)})
-    if args.exclude_pool and not exclude_files:
-        sys.exit(f"--exclude-pool에 맞는 파일이 없습니다: {args.exclude_pool}")
-    exclude = exclusions_from_pools([ROOT / f for f in exclude_files]) if exclude_files else NO_EXCLUSIONS
-    if exclude_files:
-        print(f"이전 풀 {len(exclude_files)}개 제외: 질문 {len(exclude.texts)}, 사실 {len(exclude.facts)}, "
-              f"가상 회원 {len(exclude.member_ids)}")
-
     clients = build_ensemble_pool(config, force_provider=args.mode, batch=args.batch)
     targets = category_targets(args.n_per_category, args.n_supplementary)
     if args.gate_categories == "primary":

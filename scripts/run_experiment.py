@@ -27,6 +27,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import platform
 import subprocess
 import sys
@@ -36,6 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from hongik_selfheal.attack_generator import NO_EXCLUSIONS, exclusions_from_pools, pool_overlap  # noqa: E402
 from hongik_selfheal.attack_generator import (  # noqa: E402
     category_targets, generate_full_pool, load_pool, save_pool, stratified_split,
 )
@@ -43,7 +45,7 @@ from hongik_selfheal.call_logger import CallLogger  # noqa: E402
 from hongik_selfheal.canary import check_canary_drift, save_canary_baseline  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
 from hongik_selfheal.cost_estimate import HIGH, LOW, estimate_run, format_estimate  # noqa: E402
-from hongik_selfheal.experiment import GRADE_ORDER, run_full_experiment, save_experiment_output  # noqa: E402
+from hongik_selfheal.experiment import GRADE_ORDER, Checkpoint, run_full_experiment, save_experiment_output  # noqa: E402
 from hongik_selfheal.fake_members import FAKE_MEMBERS, MEMBERS_VERSION, save_members_snapshot  # noqa: E402
 from hongik_selfheal.knowledge_base import configure_retrieval, current_kb_version, save_kb_snapshot  # noqa: E402
 from hongik_selfheal.llm_client import build_ensemble_pool  # noqa: E402
@@ -128,6 +130,23 @@ def parse_args() -> argparse.Namespace:
         "--n-supplementary", type=int, default=None,
         help="보완 범주(4개)의 셋당 개수. 생략하면 --n-per-category와 같음 (본 실행 권장안: 핵심 6, 보완 2)",
     )
+    parser.add_argument(
+        "--n-primary", type=int, default=None,
+        help="주 지표 범주(RAG 오염·개인정보 유출)의 셋당 개수. 생략하면 --n-per-category와 같음 "
+        "(분석 계획 v4 B안: 주 지표 12, 나머지 핵심 6, 보완 2)",
+    )
+    parser.add_argument(
+        "--resume-checkpoint", type=Path, default=None,
+        help="인프라 오류로 멈춘 실행을 이 체크포인트(checkpoint_<run>.json)에서 이어간다. 같은 공격 풀·설정이어야 "
+        "하며(다르면 시작하지 않음), --resume-reason이 필요하다. 이어간 지점과 멈춘 오류는 결과 파일 resume_log에 남는다",
+    )
+    parser.add_argument(
+        "--exclude-pool", action="append", default=[],
+        help="이전 공격 풀 파일(글롭, 여러 번 지정). 그 풀의 질문 문장·사실·가상 회원을 템플릿 문항에서 건너뛰고, "
+        "풀을 만든 뒤 겹침이 0개가 아니면 실행하지 않는다(probe_difficulty.py와 같음)",
+    )
+    parser.add_argument("--resume-reason", default=None,
+                        help="이어가는 이유(인프라 오류 내용). --resume-checkpoint와 함께 쓴다")
     parser.add_argument(
         "--srs-variant",
         choices=["baseline", "5w1h"],
@@ -250,6 +269,7 @@ def main() -> None:
             estimate_run(
                 initial, n_per_category=args.n_per_category, max_rounds=args.max_rounds,
                 adaptive_n=args.adaptive_n, n_repeat=args.n_repeat, n_supplementary=args.n_supplementary,
+                n_primary=args.n_primary, cross_n_repeat=args.n_repeat,
                 primary_model=models[args.primary_provider], other_models=others,
                 redteam_model=models[args.redteam_provider], profile=profile,
                 response_model=models[response_provider],
@@ -265,6 +285,14 @@ def main() -> None:
     if mode == "mock":
         # Keep mock output out of the real-results folder (program review 2026-10-11).
         results_dir = results_dir / "mock"
+    checkpoint = None
+    if args.resume_checkpoint is not None:
+        if not args.resume_reason:
+            sys.exit("--resume-checkpoint에는 --resume-reason(멈춘 인프라 오류)이 필요합니다")
+        checkpoint = Checkpoint.load(args.resume_checkpoint)
+        run_id = checkpoint.data["meta"]["run_id"]
+        if args.attack_pool_file is None:
+            args.attack_pool_file = Path(checkpoint.data["meta"]["attack_pool_file"])
     rag_dir = Path(__file__).resolve().parent.parent / "data" / "rag"
     configure_retrieval(args.retrieval, doc_dirs=tuple(args.rag_dir or ()), top_k=args.top_k)
     if args.crawled_facts:
@@ -279,7 +307,8 @@ def main() -> None:
     print(f"[run_experiment] 회원 DB 스냅샷({MEMBERS_VERSION}, {len(FAKE_MEMBERS)}명): {members_snapshot_path}")
     call_logger = None
     if args.raw_log and mode != "mock":
-        raw_log_path = results_dir / f"raw_calls_{run_id}.jsonl"
+        n_resume = len(checkpoint.data["resume_log"]) + 1 if checkpoint is not None else 0
+        raw_log_path = results_dir / (f"raw_calls_{run_id}_resume{n_resume}.jsonl" if n_resume else f"raw_calls_{run_id}.jsonl")
         call_logger = CallLogger(raw_log_path)
         print(f"[run_experiment] 원문 API 호출 로그: {raw_log_path}")
 
@@ -296,17 +325,31 @@ def main() -> None:
         f"redteam={args.redteam_provider} cross_model_backends={list(cross_model_clients)} batch={args.batch}"
     )
 
-    targets = category_targets(args.n_per_category, args.n_supplementary)
+    targets = category_targets(args.n_per_category, args.n_supplementary, args.n_primary)
+    root = Path(__file__).resolve().parent.parent
+    own_pool = Path(args.attack_pool_file).resolve() if args.attack_pool_file else None
+    exclude_files = sorted({str(p.relative_to(root)) for pat in args.exclude_pool for p in root.glob(pat)
+                            if p.resolve() != own_pool})
+    if args.exclude_pool and not exclude_files:
+        sys.exit(f"--exclude-pool에 맞는 파일이 없습니다: {args.exclude_pool}")
+    exclude = exclusions_from_pools([root / f for f in exclude_files]) if exclude_files else NO_EXCLUSIONS
     if args.attack_pool_file is not None:
         pool = load_pool(args.attack_pool_file)
         print(f"[run_experiment] 공격 시나리오 풀을 파일에서 로드(재생성 건너뜀): {args.attack_pool_file} ({len(pool)}개)")
     else:
         pool = generate_full_pool(
-            {k: 2 * v for k, v in targets.items()}, llm_client=redteam_client
+            {k: 2 * v for k, v in targets.items()}, llm_client=redteam_client, exclude=exclude
         )
-        if args.save_attack_pool is not None:
-            save_pool(pool, args.save_attack_pool)
-            print(f"[run_experiment] 공격 시나리오 풀 저장(재사용용): {args.save_attack_pool}")
+        # 체크포인트에서 이어가려면 같은 풀이 있어야 하므로, 경로를 주지 않아도 결과 폴더에 저장한다(2026-10-16).
+        args.save_attack_pool = args.save_attack_pool or results_dir / f"attack_pool_{run_id}.json"
+        save_pool(pool, args.save_attack_pool)
+        args.attack_pool_file = args.save_attack_pool
+        print(f"[run_experiment] 공격 시나리오 풀 저장(재사용용): {args.save_attack_pool}")
+    overlap = pool_overlap(pool, exclude)
+    if overlap:
+        sys.exit(f"이전 풀과 겹치는 문항 {len(overlap)}개 — 실행하지 않습니다: {overlap[:10]}")
+    if exclude_files:
+        print(f"[run_experiment] 이전 풀 {len(exclude_files)}개와 겹침 0개 확인 (문항 {len(pool)}개)")
     healing_set, held_out_set = stratified_split(pool, healing_per_cat=targets, heldout_per_cat=targets)
     print(f"[run_experiment] healing={len(healing_set)} held_out={len(held_out_set)}")
 
@@ -322,8 +365,62 @@ def main() -> None:
             f"--max-rounds({args.max_rounds})까지 전부 진행하며, 라운드별 준수율 추세를 "
             "관측하는 것이 목적입니다(100% 도달을 목표로 삼지 않음)."
         )
-    checkpoint_path = results_dir / f"checkpoint_{run_id}.json"
-    output = run_full_experiment(
+    settings = {
+        "primary_provider": args.primary_provider, "response_provider": args.response_provider or args.primary_provider,
+        "redteam_provider": args.redteam_provider, "n_per_category": args.n_per_category,
+        "n_supplementary": args.n_supplementary, "n_primary": args.n_primary, "srs_variant": args.srs_variant,
+        "max_rounds": args.max_rounds, "adaptive_n": args.adaptive_n, "n_repeat": args.n_repeat, "batch": args.batch,
+        "retrieval": args.retrieval, "rag_dir": [str(d) for d in args.rag_dir or ()], "top_k": args.top_k,
+        "crawled_facts": str(args.crawled_facts) if args.crawled_facts else None,
+        "models": {"anthropic": config.anthropic_model, "openai": config.openai_model, "gemini": config.gemini_model},
+        "kb_version": current_kb_version(), "members_version": MEMBERS_VERSION,
+        "temperatures": [config.llm_temperature, config.judge_temperature],
+    }
+    meta = {"run_id": run_id, "attack_pool_file": str(args.attack_pool_file), "exclude_pool_files": exclude_files,
+            "attack_pool_sha256": hashlib.sha256(Path(args.attack_pool_file).read_bytes()).hexdigest(),
+            "settings": settings}
+    if checkpoint is not None:
+        saved = checkpoint.data["meta"]
+        diff = {k: (saved["settings"].get(k), v) for k, v in settings.items() if saved["settings"].get(k) != v}
+        if saved["attack_pool_sha256"] != meta["attack_pool_sha256"]:
+            diff["attack_pool"] = (saved["attack_pool_file"], meta["attack_pool_file"])
+        if diff:
+            sys.exit(f"체크포인트와 공격 풀·설정이 달라 이어갈 수 없습니다: {diff}")
+        checkpoint.data["resume_log"].append({
+            "at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "completed_rounds": len(checkpoint.data["healing_rounds"]),
+            "completed_stages": sorted(checkpoint.data["stages"]),
+            "next_srs": (checkpoint.data["next_srs"] or {}).get("version"),
+            "stopped_by": checkpoint.data["last_error"], "reason": args.resume_reason,
+        })
+        checkpoint.update(last_error=None)
+        print(f"[run_experiment] 체크포인트에서 이어감: {args.resume_checkpoint} "
+              f"(라운드 {len(checkpoint.data['healing_rounds'])}개, 단계 {sorted(checkpoint.data['stages'])})")
+    else:
+        checkpoint = Checkpoint(results_dir / f"checkpoint_{run_id}.json")
+        checkpoint.update(meta=meta)
+    try:
+        output = _run(args, initial_srs, healing_set, held_out_set, primary_client, cross_model_clients,
+                      redteam_client, srs_dir, config, checkpoint, response_client)
+    except Exception as e:
+        import traceback
+        checkpoint.update(last_error={"at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                                      "type": type(e).__name__, "message": str(e)[:2000],
+                                      "traceback": traceback.format_exc()[-4000:]})
+        print(f"[run_experiment] 실행 중단, 체크포인트에 오류 기록: {checkpoint.path}\n"
+              f"  인프라 오류라면 같은 설정으로 --resume-checkpoint {checkpoint.path} --resume-reason '...'로 이어갈 수 있습니다")
+        raise
+    output["attack_pool_file"] = meta["attack_pool_file"]
+    output["attack_pool_sha256"] = meta["attack_pool_sha256"]
+    output["checkpoint_file"] = str(checkpoint.path)
+    output["n_primary"] = args.n_primary
+    output["exclude_pool_files"] = checkpoint.data["meta"].get("exclude_pool_files", [])
+    _finish(args, output, config, mode, results_dir, run_id, call_logger=call_logger)
+
+
+def _run(args, initial_srs, healing_set, held_out_set, primary_client, cross_model_clients, redteam_client,
+         srs_dir, config, checkpoint, response_client):
+    return run_full_experiment(
         initial_srs,
         healing_set,
         held_out_set,
@@ -337,9 +434,12 @@ def main() -> None:
         unit_temperature=config.llm_temperature,
         judge_temperature=config.judge_temperature,
         n_repeat=args.n_repeat,
-        checkpoint_path=checkpoint_path,
+        checkpoint=checkpoint,
         response_client=response_client,
     )
+
+
+def _finish(args, output, config, mode, results_dir, run_id, *, call_logger) -> None:
 
     # --- 통계 검정 (thesis.md §3.5.3) ---
     first_round = output["healing_rounds"][0]
@@ -472,7 +572,12 @@ def main() -> None:
         else:
             print(f"\n[결정론적 폴백 문구 점검] 통과 (활성 SRS {fbc['srs_version']} 기준 {fbc.get('grade')})")
 
-    out_path = args.output or (results_dir / f"experiment_{run_id}.json")
+    n_resume = len(output.get("resume_log") or [])
+    out_path = args.output or (results_dir / (f"experiment_{run_id}_resume{n_resume}.json" if n_resume
+                                              else f"experiment_{run_id}.json"))
+    if out_path.exists():
+        # never overwrite an earlier result file (CLAUDE.md file rule)
+        out_path = out_path.with_name(f"{out_path.stem}_{datetime.now(timezone.utc):%H%M%S}{out_path.suffix}")
     save_experiment_output(output, out_path)
 
     def _avg_score_std(results: list[dict]) -> float | None:

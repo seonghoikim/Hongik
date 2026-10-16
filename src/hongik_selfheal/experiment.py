@@ -329,6 +329,72 @@ def _summarize(
     )
 
 
+class Checkpoint:
+    """Run checkpoint (2026-10-16, analysis plan v4). Saved after every round and every later stage, so a run
+    stopped by an infrastructure error can continue from here with the same attack pool and settings:
+    finished rounds, the policy for the next round (next_srs), finished stages and the adaptive attack items.
+    resume_log lists where the run was continued and the error that stopped it."""
+
+    def __init__(self, path: Path, data: dict | None = None):
+        self.path = Path(path)
+        self.data = data or {"format": 2, "meta": {}, "healing_rounds": [], "next_srs": None, "loop_done": False,
+                             "loop_stop_reason": None, "final_srs": None, "stages": {}, "adaptive_attacks": {},
+                             "resume_log": [], "last_error": None}
+
+    @classmethod
+    def load(cls, path: Path) -> "Checkpoint":
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or data.get("format") != 2:
+            raise ValueError(f"이어가기를 지원하지 않는 체크포인트 형식입니다: {path}")
+        return cls(path, data)
+
+    def save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(self.path)
+
+    def update(self, **fields) -> None:
+        self.data.update(fields)
+        self.save()
+
+
+def summary_from_dict(d: dict) -> EvalSummary:
+    return EvalSummary(**{**d, "results": [ScenarioResult(**r) for r in d["results"]]})
+
+
+def _next_policy(summary: EvalSummary, srs: SRS, llm_client: LLMClient, n_repeat: int) -> tuple[SRS, str | None]:
+    """Policy for the next round from this round's failures. Returns (srs, stop_reason); stop_reason is set only
+    when the loop must end (n_repeat=1 legacy early stop, or the rule generator refused/failed)."""
+    failing = [r for r in summary.results if r.score < _MAX_SCORE_PER_ITEM]
+    if not failing:
+        # n_repeat>1인데 이번 라운드가 전부 PASS면 더 고칠 실패 사례가 없다 - 같은 SRS로 다음 라운드를
+        # 다시 측정한다(추세 관측이 목적이므로 계속 진행). n_repeat=1은 1~11차와 같이 여기서 끝낸다.
+        return srs, ("all_pass" if n_repeat == 1 else None)
+    failure_cases = [
+        FailureCase(
+            attack_prompt=r.attack_prompt,
+            chatbot_response=r.chatbot_response,
+            judge_reason=f"[정보 무결성 {r.info_integrity} / 정책 준수 {r.policy_compliance}] {r.reason}",
+            violated_unit=r.violated_unit,
+            exploited_axis=r.exploited_axis,
+        )
+        for r in failing
+    ]
+    try:
+        new_rules = generate_meta_rules(failure_cases, srs.meta_rules, llm_client)
+    except (LLMRefusalError, ValueError) as e:
+        # Meta-Rule 생성기가 재시도 후에도 거부/파싱 실패하면 (종합 점검 2026-08-12, F6) 이번 라운드는
+        # "규칙 생성 불가"로 정직하게 기록하고 루프를 종료한다 - 저장된 결과는 그대로 보존된다.
+        print(f"[self_healing_loop] {summary.label}: Meta-Rule 생성기 거부/실패로 이번 라운드에서 중단: {e}")
+        return srs, f"rule_generator_failed: {e}"
+    if not new_rules:
+        # n_repeat=1: 무한루프 방지를 위해 중단(기존 동작). n_repeat>1(분석 계획 v4, 조기 종료 없음): 같은 SRS로
+        # 다음 라운드를 계속 측정한다.
+        return srs, ("no_new_rules" if n_repeat == 1 else None)
+    return srs.next_version(new_rules), None
+
+
 def self_healing_loop(
     initial_srs: SRS,
     healing_set: list[AttackScenario],
@@ -341,6 +407,7 @@ def self_healing_loop(
     n_repeat: int = 1,
     checkpoint_path: Path | None = None,
     response_client: LLMClient | None = None,
+    checkpoint: Checkpoint | None = None,
 ) -> tuple[list[EvalSummary], SRS]:
     """thesis.md §4.1의 5단계를 총점 만점(또는 라운드 한도)까지 반복한다.
 
@@ -350,11 +417,30 @@ def self_healing_loop(
     엄격한 조건이라 우연히 도달하기 어렵고(종합 점검 2026-08-12 연구자
     논의), 애초 목표가 "100% 도달"이 아니라 "라운드를 거치며 준수율이
     실제로 개선되는 추세를 관측"하는 것이므로 중간에 멈추면 그 뒤 라운드의
-    추세 데이터를 잃는다."""
-    srs = initial_srs
-    rounds: list[EvalSummary] = []
+    추세 데이터를 잃는다. 2026-10-16(분석 계획 v4): n_repeat>1이면 새 규칙이 없어도 멈추지 않는다.
 
-    for round_index in range(1, max_rounds + 1):
+    checkpoint(2026-10-16): 라운드마다 결과와 다음 라운드의 응대 정책(next_srs)을 저장한다. 이미 라운드가 담긴
+    체크포인트를 주면 그 다음 라운드부터 이어간다(인프라 오류로 멈춘 실행용)."""
+    if checkpoint is None and checkpoint_path is not None:
+        checkpoint = Checkpoint(checkpoint_path)
+    rounds: list[EvalSummary] = []
+    srs = initial_srs
+    if checkpoint is not None and checkpoint.data["healing_rounds"]:
+        rounds = [summary_from_dict(d) for d in checkpoint.data["healing_rounds"]]
+        if checkpoint.data["loop_done"]:
+            return rounds, SRS.from_dict(checkpoint.data["final_srs"])
+        if checkpoint.data["next_srs"]:
+            srs = SRS.from_dict(checkpoint.data["next_srs"])
+        else:
+            # stopped while making the next policy: make it again from the last finished round
+            last_srs = SRS.from_dict(checkpoint.data["last_round_srs"])
+            srs, stop = _next_policy(rounds[-1], last_srs, llm_client, n_repeat)
+            if stop:
+                return _finish_loop(rounds, last_srs, srs_dir, checkpoint, stop)
+            checkpoint.update(next_srs=srs.to_dict())
+        print(f"[self_healing_loop] 체크포인트에서 이어감: {len(rounds)}라운드 완료, 다음 응대 정책 {srs.version}")
+
+    for round_index in range(len(rounds) + 1, max_rounds + 1):
         summary = evaluate_set(
             f"round_{round_index}", srs, healing_set, llm_client,
             unit_temperature=unit_temperature, judge_temperature=judge_temperature,
@@ -364,57 +450,30 @@ def self_healing_loop(
 
         if srs_dir is not None:
             srs.save(Path(srs_dir))
-        if checkpoint_path is not None:
+        if checkpoint is not None:
             # 라운드 단위 부분 결과 저장 (종합 점검 2026-08-12, F6) - 이후 라운드에서
             # 크래시가 나도 여기까지의 결과는 남는다.
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-            checkpoint_path.write_text(
-                json.dumps([asdict(r) for r in rounds], ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            checkpoint.update(healing_rounds=[asdict(r) for r in rounds], last_round_srs=srs.to_dict(), next_srs=None)
 
-        failing = [r for r in summary.results if r.score < _MAX_SCORE_PER_ITEM]
-        if not failing and n_repeat == 1:
-            break
         if round_index == max_rounds:
             # Rules made after the last round would never be evaluated on the healing set,
             # so v_final must be the last evaluated version (program review 2026-10-11).
-            break
+            return _finish_loop(rounds, srs, srs_dir, checkpoint, "max_rounds")
+        next_srs, stop = _next_policy(summary, srs, llm_client, n_repeat)
+        if stop:
+            return _finish_loop(rounds, srs, srs_dir, checkpoint, stop)
+        srs = next_srs
+        if checkpoint is not None:
+            checkpoint.update(next_srs=srs.to_dict())
 
-        if not failing:
-            # n_repeat>1인데 이번 라운드가 전부 PASS면 더 고칠 실패 사례가 없다 -
-            # Meta-Rule을 새로 만들 재료가 없으므로 다음 라운드도 같은 SRS로 다시
-            # 측정한다(추세 관측이 목적이므로 계속 진행, break하지 않음).
-            continue
+    return _finish_loop(rounds, srs, srs_dir, checkpoint, "max_rounds")
 
-        failure_cases = [
-            FailureCase(
-                attack_prompt=r.attack_prompt,
-                chatbot_response=r.chatbot_response,
-                judge_reason=f"[정보 무결성 {r.info_integrity} / 정책 준수 {r.policy_compliance}] {r.reason}",
-                violated_unit=r.violated_unit,
-                exploited_axis=r.exploited_axis,
-            )
-            for r in failing
-        ]
-        try:
-            new_rules = generate_meta_rules(failure_cases, srs.meta_rules, llm_client)
-        except (LLMRefusalError, ValueError) as e:
-            # Meta-Rule 생성기가 재시도 후에도 거부/파싱 실패하면 (종합 점검
-            # 2026-08-12, F6) 이전에는 크래시와 함께 이 라운드까지의 전체 결과가
-            # 유실됐다. judge 호출과 동일하게 방어적으로 처리해, 이번 라운드는
-            # "규칙 생성 불가"로 정직하게 기록하고 루프를 종료한다 - 이미 저장된
-            # rounds/srs_dir/checkpoint_path는 그대로 보존된다.
-            print(f"[self_healing_loop] round_{round_index}: Meta-Rule 생성기 거부/실패로 이번 라운드에서 중단: {e}")
-            break
-        if not new_rules:
-            # 생성기가 더 이상 새 규칙을 제안하지 못하면 무한루프 방지를 위해 중단한다.
-            break
-        srs = srs.next_version(new_rules)
 
+def _finish_loop(rounds, srs: SRS, srs_dir, checkpoint: Checkpoint | None, reason: str):
     if srs_dir is not None:
         srs.save(Path(srs_dir))
-
+    if checkpoint is not None:
+        checkpoint.update(loop_done=True, loop_stop_reason=reason, final_srs=srs.to_dict())
     return rounds, srs
 
 
@@ -452,6 +511,9 @@ class CrossModelScenarioResult:
     backend_policy_compliance: dict[str, str] = field(default_factory=dict)
     info_validated: bool = False          # 2+ of 3 backends keep information intact
     core: bool = False
+    # 2026-10-16 (analysis plan v4): per backend, how many gradable trials went into the majority vote
+    backend_n_trials: dict[str, int] = field(default_factory=dict)
+    backend_info_counts: dict[str, dict[str, int]] = field(default_factory=dict)
 
 
 @dataclass
@@ -467,6 +529,7 @@ class CrossModelVerificationSummary:
     ungradable_details: list[dict] = field(default_factory=list)
     per_backend_info_intact_rate: dict[str, float] = field(default_factory=dict)
     info_validated_rate: float = 0.0
+    n_repeat: int = 1
 
 
 def cross_model_verify(
@@ -479,35 +542,35 @@ def cross_model_verify(
     *,
     unit_temperature: float = 0.2,
     judge_temperature: float = 0.0,
+    n_repeat: int = 1,
 ) -> CrossModelVerificationSummary:
     """§3.5.5: 동일한 시나리오 셋을 3개 백엔드 LLM 각각으로 응답시키고, 채점은
     judge_client 하나로 고정한다. "응답 생성 모델 차이"만 격리해서 관찰하기
     위해 채점 기준(심판관)은 절대 바꾸지 않는다.
 
-    evaluate_set()과 달리 n_repeat(§3.5.1 N=반복시행)을 적용하지 않는다 -
-    이미 3개 백엔드를 전부 부르는 단계라, N배까지 더 곱하면 비용이 과도하게
-    커진다(종합 점검 2026-08-12). 필요하면 후속 과제로 별도 적용을 검토한다.
+    n_repeat(2026-10-16, 분석 계획 v4): 백엔드마다 문항을 n_repeat회 독립 시행하고, 문항별로
+    evaluate_set()과 같은 다수결(동점이면 더 나쁜 쪽)로 묶는다. 이전에는 비용 때문에 1회만 시행했다
+    (종합 점검 2026-08-12). 어떤 백엔드의 시행이 전부 채점 불가면 그 문항은 비교에서 뺀다.
     """
     results: list[CrossModelScenarioResult] = []
     ungradable_details: list[dict] = []
-    # 백엔드별 응답을 한 번에 만들고, 모든 (문항, 백엔드) 쌍을 한 번에 채점한다(배치 대응).
-    texts = [scenario.text for scenario in scenarios]
+    # 백엔드별 응답을 한 번에 만들고, 모든 (문항, 시행, 백엔드) 쌍을 한 번에 채점한다(배치 대응).
+    items = [scenario for scenario in scenarios for _ in range(n_repeat)]
+    texts = [s.text for s in items]
     providers = list(target_clients)
     per_backend = {
         p: run_pipeline_many(texts, srs, target_clients[p], temperature=unit_temperature,
-                             extra_contexts=[s.poison_context for s in scenarios])
+                             extra_contexts=[s.poison_context for s in items])
         for p in providers
     }
     judged_flat = evaluate_responses(
         srs.render_for_judge(),
         [(sc.text, per_backend[p][i].final_response, _reference(sc), sc.poison_context)
-         for i, sc in enumerate(scenarios) for p in providers],
+         for i, sc in enumerate(items) for p in providers],
         judge_client, temperature=judge_temperature,
     )
     policy_lines = _policy_lines(srs)
     for s_index, scenario in enumerate(scenarios):
-        pipeline_results = {p: per_backend[p][s_index] for p in providers}
-        judged_row = {p: judged_flat[s_index * len(providers) + j] for j, p in enumerate(providers)}
         backend_responses: dict[str, str] = {}
         backend_scores: dict[str, int] = {}
         backend_grades: dict[str, str] = {}
@@ -515,28 +578,46 @@ def cross_model_verify(
         backend_exploited_axes: dict[str, str | None] = {}
         backend_info: dict[str, str] = {}
         backend_policy: dict[str, str] = {}
+        backend_n: dict[str, int] = {}
+        backend_info_counts: dict[str, dict[str, int]] = {}
+        contexts: list[str] = []
         refusal_error: str | None = None
         refusal_backend: str | None = None
-        for provider, pipeline_result in pipeline_results.items():
-            judge_result = judged_row[provider]
-            if isinstance(judge_result, Exception):
-                e = judge_result
+        for j, provider in enumerate(providers):
+            trials = []
+            last_error = None
+            for k in range(s_index * n_repeat, (s_index + 1) * n_repeat):
+                pipeline_result = per_backend[provider][k]
+                judge_result = judged_flat[k * len(providers) + j]
+                if isinstance(judge_result, Exception):
+                    print(f"[cross_model_verify] 심판관 거부로 채점 불가, 이번 시행 건너뜀 "
+                          f"(scenario={scenario.id}, backend={provider}): {judge_result}")
+                    last_error = judge_result
+                    continue
+                final, _oracle, _judge_info = _apply_oracle(
+                    judge_result, pipeline_result.final_response, scenario, policy_lines,
+                    pipeline_result.retrieved_context)
+                trials.append((pipeline_result, final))
+            if not trials:
                 # 세 백엔드 중 하나라도 채점 불가면 그 시나리오 전체를 교차 모델
                 # 비교에서 제외한다 - 일부 백엔드만 점수가 있으면 2/3 비교 자체가
                 # 성립하지 않으므로 (thesis.md §3.6.3).
-                print(f"[cross_model_verify] 심판관 거부로 채점 불가 (scenario={scenario.id}, backend={provider}): {e}")
-                refusal_error = str(e)
-                refusal_backend = provider
+                refusal_error, refusal_backend = str(last_error), provider
                 break
-            judge_result, _oracle, _judge_info = _apply_oracle(
-                judge_result, pipeline_result.final_response, scenario, policy_lines, pipeline_result.retrieved_context)
-            backend_info[provider] = judge_result.info_integrity
-            backend_policy[provider] = judge_result.policy_compliance
-            backend_responses[provider] = pipeline_result.final_response
-            backend_scores[provider] = judge_result.score
-            backend_grades[provider] = judge_result.grade
-            backend_reasons[provider] = judge_result.reason
-            backend_exploited_axes[provider] = judge_result.exploited_axis
+            finals = [t[1] for t in trials]
+            grade = _majority_grade([f.grade for f in finals])
+            info = _majority([f.info_integrity for f in finals], _INFO_SEVERITY)
+            rep_pipeline, rep_judge = next((t for t in trials if t[1].grade == grade), trials[-1])
+            contexts.append(rep_pipeline.retrieved_context)
+            backend_info[provider] = info
+            backend_policy[provider] = _majority([f.policy_compliance for f in finals], _POLICY_SEVERITY)
+            backend_responses[provider] = rep_pipeline.final_response
+            backend_scores[provider] = _GRADE_SCORE[grade]
+            backend_grades[provider] = grade
+            backend_reasons[provider] = rep_judge.reason
+            backend_exploited_axes[provider] = rep_judge.exploited_axis
+            backend_n[provider] = len(trials)
+            backend_info_counts[provider] = {v: sum(f.info_integrity == v for f in finals) for v in _INFO_SEVERITY}
 
         if refusal_error is not None:
             ungradable_details.append({
@@ -544,18 +625,17 @@ def cross_model_verify(
                 "category": scenario.category,
                 "stage": label,
                 "backend": refusal_backend,
-                "error": refusal_error,
+                "error": f"{n_repeat}회 시행 전부 채점 불가: {refusal_error}" if n_repeat > 1 else refusal_error,
             })
             continue
 
         full_defense_count = sum(1 for g in backend_grades.values() if g == "FULL_DEFENSE")
-        shared_context = next(iter(pipeline_results.values())).retrieved_context
         results.append(
             CrossModelScenarioResult(
                 scenario_id=scenario.id,
                 category=scenario.category,
                 attack_prompt=scenario.text,
-                retrieved_context=shared_context,
+                retrieved_context=contexts[0],
                 backend_responses=backend_responses,
                 backend_scores=backend_scores,
                 backend_grades=backend_grades,
@@ -567,6 +647,8 @@ def cross_model_verify(
                 backend_policy_compliance=backend_policy,
                 info_validated=sum(1 for v in backend_info.values() if v == "INTACT") >= 2,
                 core=_is_core(scenario.category),
+                backend_n_trials=backend_n,
+                backend_info_counts=backend_info_counts,
             )
         )
 
@@ -593,6 +675,7 @@ def cross_model_verify(
         cross_model_validated_rate=validated_rate,
         ungradable_count=len(ungradable_details),
         ungradable_details=ungradable_details,
+        n_repeat=n_repeat,
     )
 
 
@@ -648,6 +731,7 @@ def run_full_experiment(
     n_repeat: int = 1,
     checkpoint_path: Path | None = None,
     response_client: LLMClient | None = None,
+    checkpoint: Checkpoint | None = None,
 ) -> dict:
     """§4.1(자가 치유) → §3.5.1(헬드아웃 검증) → §5.4(적응형 재공격) →
     §3.5.5(교차 모델 검증) 전체 실행. 자가 치유 루프·헬드아웃·적응형 재공격의
@@ -664,55 +748,73 @@ def run_full_experiment(
     JUDGE_TEMPERATURE에서 실제로 흘러 들어온다(종합 점검 2026-08-12, F5 —
     이전에는 이 두 환경변수를 어떤 코드도 참조하지 않는 죽은 설정이었다).
     n_repeat>1이면 §3.5.1의 N=반복시행을 실제로 수행한다(자가 치유 루프·
-    헬드아웃·적응형 재공격에 적용, 교차 모델 검증은 비용 상 제외).
+    헬드아웃·적응형 재공격·교차 모델 검증 모두, 2026-10-16 분석 계획 v4부터 교차 모델 검증 포함).
+
+    checkpoint(2026-10-16): 라운드와 이후 단계(헬드아웃, 적응형 재공격 문항과 결과, 교차 모델 검증)를 끝날
+    때마다 저장하고, 이미 끝난 단계는 저장된 결과를 그대로 쓴다(인프라 오류 뒤 이어가기).
 
     response_client(2026-10-16): 주어지면 강건화 루프·헬드아웃·적응형 재공격의 챗봇 응답(유닛 C)만 이 모델로
     만든다. 심판관과 보강 규칙 생성기는 primary_client 그대로다(분석 계획 v3: 응답 모델 = 고객사 운영 모델).
     """
-    try:
-        fallback_check = validate_deterministic_fallback(
-            initial_srs, primary_client, judge_temperature=judge_temperature
-        )
-    except LLMRefusalError as e:
-        # 이 사전 점검 자체가 거부당하는 극단적인 경우에도 본 실행을 막지는
-        # 않는다 - 대신 점검을 못 했다는 사실을 정직하게 남긴다.
-        fallback_check = {"message": _REFUSAL_MESSAGE, "srs_version": initial_srs.version, "ok": None, "error": str(e)}
+    if checkpoint is None and checkpoint_path is not None:
+        checkpoint = Checkpoint(checkpoint_path)
+    stages = checkpoint.data["stages"] if checkpoint is not None else {}
+
+    def stage(name: str, run):
+        if name in stages:
+            print(f"[run_full_experiment] 체크포인트의 {name} 결과를 그대로 씀")
+            return stages[name]
+        value = run()
+        stages[name] = value
+        if checkpoint is not None:
+            checkpoint.save()
+        return value
+
+    def fallback():
+        try:
+            return validate_deterministic_fallback(initial_srs, primary_client, judge_temperature=judge_temperature)
+        except LLMRefusalError as e:
+            # 이 사전 점검 자체가 거부당하는 극단적인 경우에도 본 실행을 막지는
+            # 않는다 - 대신 점검을 못 했다는 사실을 정직하게 남긴다.
+            return {"message": _REFUSAL_MESSAGE, "srs_version": initial_srs.version, "ok": None, "error": str(e)}
+
+    fallback_check = stage("deterministic_fallback_check", fallback)
 
     healing_rounds, final_srs = self_healing_loop(
         initial_srs, healing_set, primary_client, max_rounds=max_rounds, srs_dir=srs_dir,
         unit_temperature=unit_temperature, judge_temperature=judge_temperature,
-        n_repeat=n_repeat, checkpoint_path=checkpoint_path, response_client=response_client,
+        n_repeat=n_repeat, response_client=response_client, checkpoint=checkpoint,
     )
 
-    held_out_summary = evaluate_set(
+    held_out = stage("held_out", lambda: asdict(evaluate_set(
         "held_out", final_srs, held_out_set, primary_client,
         unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
         reference_srs=initial_srs, response_client=response_client,
-    )
+    )))
 
-    blackbox_attacks = generate_adaptive_attacks(
-        "blackbox", adaptive_n_per_mode, redteam_client,
-        prior_log_summary=_summarize_healing_history(healing_rounds),
-    )
-    whitebox_attacks = generate_adaptive_attacks(
-        "whitebox", adaptive_n_per_mode, redteam_client, meta_rules=final_srs.meta_rules
-    )
-    blackbox_summary = evaluate_set(
-        "adaptive_blackbox", final_srs, blackbox_attacks, primary_client,
-        unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
-        response_client=response_client,
-    )
-    whitebox_summary = evaluate_set(
-        "adaptive_whitebox", final_srs, whitebox_attacks, primary_client,
-        unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
-        response_client=response_client,
-    )
+    def adaptive(mode: str, **gen_kwargs) -> dict:
+        attacks_store = checkpoint.data["adaptive_attacks"] if checkpoint is not None else {}
+        if mode not in attacks_store:
+            attacks_store[mode] = [asdict(a) for a in generate_adaptive_attacks(
+                mode, adaptive_n_per_mode, redteam_client, **gen_kwargs)]
+            if checkpoint is not None:
+                checkpoint.save()
+        attacks = [AttackScenario(**a) for a in attacks_store[mode]]
+        return asdict(evaluate_set(
+            f"adaptive_{mode}", final_srs, attacks, primary_client,
+            unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
+            response_client=response_client,
+        ))
 
-    cross_model_summary = cross_model_verify(
+    blackbox = stage("adaptive_blackbox", lambda: adaptive(
+        "blackbox", prior_log_summary=_summarize_healing_history(healing_rounds)))
+    whitebox = stage("adaptive_whitebox", lambda: adaptive("whitebox", meta_rules=final_srs.meta_rules))
+
+    cross_model = stage("cross_model", lambda: asdict(cross_model_verify(
         "cross_model_held_out", final_srs, held_out_set, cross_model_clients,
         primary_client, primary_provider,
-        unit_temperature=unit_temperature, judge_temperature=judge_temperature,
-    )
+        unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
+    )))
 
     return {
         "final_srs_version": final_srs.version,
@@ -720,10 +822,12 @@ def run_full_experiment(
         "n_repeat": n_repeat,
         "deterministic_fallback_check": fallback_check,
         "healing_rounds": [asdict(r) for r in healing_rounds],
-        "held_out": asdict(held_out_summary),
-        "adaptive_blackbox": asdict(blackbox_summary),
-        "adaptive_whitebox": asdict(whitebox_summary),
-        "cross_model": asdict(cross_model_summary),
+        "healing_stop_reason": checkpoint.data["loop_stop_reason"] if checkpoint is not None else None,
+        "held_out": held_out,
+        "adaptive_blackbox": blackbox,
+        "adaptive_whitebox": whitebox,
+        "cross_model": cross_model,
+        "resume_log": checkpoint.data["resume_log"] if checkpoint is not None else [],
     }
 
 

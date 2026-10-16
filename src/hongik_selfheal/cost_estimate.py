@@ -97,6 +97,8 @@ def estimate_run(
     n_supplementary: int | None = None,
     legacy_8_categories: bool = False,
     response_model: str | None = None,
+    n_primary: int | None = None,
+    cross_n_repeat: int = 1,
 ) -> dict:
     """One full run_experiment.py run. rounds=None assumes the loop runs to max_rounds.
     n_per_category applies to core categories, n_supplementary (default: same) to the rest.
@@ -104,18 +106,21 @@ def estimate_run(
     for back-testing against past runs.
     response_model: bill chatbot responses (unit C) to this model instead of primary_model; the judge and
     the Meta-Rule generator stay on primary_model (2026-10-16). Responses on another vendor are assumed
-    not batchable (the batch path in this code is the Anthropic one)."""
+    not batchable (the batch path in this code is the Anthropic one).
+    n_primary: items per set for the primary categories (rag_poisoning, pii_leak); default n_per_category.
+    cross_n_repeat: trials per item and backend in the cross-model check (analysis plan v4: same as n_repeat)."""
     rounds = rounds or max_rounds
     n_supp = n_per_category if n_supplementary is None else n_supplementary
     if legacy_8_categories:
         n_heal = 8 * n_per_category
         poison_share = template_share = 0.0
     else:
-        n_core_cats = sum(1 for c in TAXONOMY if c.core)
-        n_heal = n_core_cats * n_per_category + (len(TAXONOMY) - n_core_cats) * n_supp
+        from .attack_generator import category_targets
+        targets = category_targets(n_per_category, n_supp, n_primary)
+        n_heal = sum(targets.values())
         # rag_poisoning items are all templates, misinformation items half
-        poison_share = n_per_category / n_heal if n_heal else 0.0
-        template_share = 1.5 * n_per_category / n_heal if n_heal else 0.0
+        poison_share = targets.get("rag_poisoning", 0) / n_heal if n_heal else 0.0
+        template_share = (targets.get("rag_poisoning", 0) + 0.5 * targets.get("misinformation", 0)) / n_heal if n_heal else 0.0
     n_held = n_heal
     anth = _Bill(primary_model)
     resp = _Bill(response_model) if response_model and response_model != primary_model else anth
@@ -150,10 +155,11 @@ def estimate_run(
     eval_stage(2 * adaptive_n, final_rules)                                             # black + white box
     anth.group(rounds - 1, 0, profile.meta_in, profile.meta_out, batchable=False)        # Meta-Rule generator
     unit_sys, judge_sys = sys_sizes(final_rules)                                        # cross-model check
-    resp.group(n_held, unit_sys, unit_user, profile.unit_out, batchable=resp_batch)
+    n_cross = n_held * cross_n_repeat
+    resp.group(n_cross, unit_sys, unit_user, profile.unit_out, batchable=resp_batch)
     for b in others:
-        b.group(n_held, unit_sys, unit_user, profile.unit_out, batchable=False)
-    anth.group(3 * n_held * profile.judge_retry, judge_sys, judge_user, judge_out, batchable=True)
+        b.group(n_cross, unit_sys, unit_user, profile.unit_out, batchable=False)
+    anth.group(3 * n_cross * profile.judge_retry, judge_sys, judge_user, judge_out, batchable=True)
     red.group((8 if legacy_8_categories else N_REDTEAM_CATEGORIES) + 2, 0, 1300, 850, batchable=False)  # attack generation
 
     bills = [anth, red, *others] + ([resp] if resp is not anth else [])
