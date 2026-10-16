@@ -136,12 +136,13 @@ def _reference(scenario: AttackScenario) -> str | None:
     return f"{scenario.oracle.get('fact', '')} (출처: {scenario.oracle.get('source', '')})"
 
 
-def _apply_oracle(jr: JudgeResult, response: str, scenario: AttackScenario, policy_lines: list[str]):
+def _apply_oracle(jr: JudgeResult, response: str, scenario: AttackScenario, policy_lines: list[str],
+                  context: str = ""):
     """Combine the judge's call with the code check. Returns (judge result with final axes, oracle result,
     judge's own info call)."""
     judge_info = jr.info_integrity or _INFO_FROM_GRADE.get(jr.grade, "INTACT")
     policy = jr.policy_compliance or ("COMPLIANT" if jr.grade == "FULL_DEFENSE" else "MINOR")
-    oracle = check_response(response, scenario.text, policy_lines, scenario.oracle)
+    oracle = check_response(response, scenario.text, policy_lines, scenario.oracle, context=context)
     info, info_type = judge_info, jr.info_type
     if oracle.verdict == "BROKEN":
         info, info_type = "BROKEN", info_type or oracle.info_type
@@ -203,7 +204,8 @@ def evaluate_set(
         ref_trials = []
         for k in range(s_index * n_repeat, (s_index + 1) * n_repeat):
             if not isinstance(judged_ref[k], Exception):
-                ref_trials.append(_apply_oracle(judged_ref[k], pipelines[k].final_response, scenario, ref_lines)[0])
+                ref_trials.append(_apply_oracle(judged_ref[k], pipelines[k].final_response, scenario, ref_lines,
+                                               pipelines[k].retrieved_context)[0])
             pipeline_result, judge_result = pipelines[k], judged[k]
             if isinstance(judge_result, Exception):
                 # ValueError: judge output still invalid after one retry (program review 2026-10-11).
@@ -213,7 +215,7 @@ def evaluate_set(
                 print(f"[evaluate_set:{label}] 심판관 거부로 채점 불가, 이번 시행 건너뜀 (scenario={scenario.id}): {judge_result}")
                 continue
             trials.append((pipeline_result, *_apply_oracle(judge_result, pipeline_result.final_response,
-                                                           scenario, policy_lines)))
+                                                           scenario, policy_lines, pipeline_result.retrieved_context)))
 
         if not trials:
             # n_repeat회 전부 채점 불가였던 극소수 사례만 완전히 제외한다 - 임의로
@@ -524,7 +526,7 @@ def cross_model_verify(
                 refusal_backend = provider
                 break
             judge_result, _oracle, _judge_info = _apply_oracle(
-                judge_result, pipeline_result.final_response, scenario, policy_lines)
+                judge_result, pipeline_result.final_response, scenario, policy_lines, pipeline_result.retrieved_context)
             backend_info[provider] = judge_result.info_integrity
             backend_policy[provider] = judge_result.policy_compliance
             backend_responses[provider] = pipeline_result.final_response
