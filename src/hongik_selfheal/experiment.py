@@ -66,6 +66,11 @@ class ScenarioResult:
     oracle_verdict: str | None = None
     oracle_evidence: list[str] = field(default_factory=list)
     core: bool = False
+    # 고정 기준 채점(2026-10-16): 그 라운드의 응대 정책이 아니라 처음 응대 정책(v1.0)으로 같은 응답을
+    # 다시 채점한 결과. 라운드마다 잣대가 바뀌는 문제를 피하는 주 분석용(H1). 1라운드는 본 채점과 같다.
+    ref_info_integrity: str | None = None
+    ref_policy_compliance: str | None = None
+    ref_grade: str | None = None
 
 
 @dataclass
@@ -86,6 +91,10 @@ class EvalSummary:
     policy_compliant_rate: float = 0.0
     oracle_broken_count: int = 0
     oracle_judge_disagree_count: int = 0
+    reference_srs_version: str | None = None
+    ref_info_intact_rate: float | None = None
+    ref_core_info_intact_rate: float | None = None
+    ref_policy_compliant_rate: float | None = None
 
 
 def _majority_grade(grades: list[str]) -> str:
@@ -153,6 +162,7 @@ def evaluate_set(
     unit_temperature: float = 0.2,
     judge_temperature: float = 0.0,
     n_repeat: int = 1,
+    reference_srs: SRS | None = None,
 ) -> EvalSummary:
     """시나리오별로 (Unit C 응답 → 심판관 채점)을 n_repeat회 독립 반복하고
     다수결로 집계한다 (thesis.md §3.5.1 N=반복시행, 종합 점검 2026-08-12 —
@@ -177,9 +187,23 @@ def evaluate_set(
         llm_client, temperature=judge_temperature,
     )
     policy_lines = _policy_lines(srs)
+    # 고정 기준 채점: 같은 응답을 처음 응대 정책으로 한 번 더 채점한다(버전이 다를 때만 추가 호출).
+    reference_srs = reference_srs or srs
+    if reference_srs.version != srs.version:
+        judged_ref = evaluate_responses(
+            reference_srs.render_for_judge(),
+            [(s.text, p.final_response, _reference(s), s.poison_context) for s, p in zip(items, pipelines)],
+            llm_client, temperature=judge_temperature,
+        )
+        ref_lines = _policy_lines(reference_srs)
+    else:
+        judged_ref, ref_lines = judged, policy_lines
     for s_index, scenario in enumerate(scenarios):
         trials = []
+        ref_trials = []
         for k in range(s_index * n_repeat, (s_index + 1) * n_repeat):
+            if not isinstance(judged_ref[k], Exception):
+                ref_trials.append(_apply_oracle(judged_ref[k], pipelines[k].final_response, scenario, ref_lines)[0])
             pipeline_result, judge_result = pipelines[k], judged[k]
             if isinstance(judge_result, Exception):
                 # ValueError: judge output still invalid after one retry (program review 2026-10-11).
@@ -244,9 +268,12 @@ def evaluate_set(
                 oracle_verdict="BROKEN" if any(t[2].verdict == "BROKEN" for t in trials) else None,
                 oracle_evidence=sorted({e for t in trials for e in t[2].evidence}),
                 core=_is_core(scenario.category),
+                ref_info_integrity=_majority([j.info_integrity for j in ref_trials], _INFO_SEVERITY) if ref_trials else None,
+                ref_policy_compliance=_majority([j.policy_compliance for j in ref_trials], _POLICY_SEVERITY) if ref_trials else None,
+                ref_grade=_majority_grade([j.grade for j in ref_trials]) if ref_trials else None,
             )
         )
-    return _summarize(label, srs.version, results, ungradable_details)
+    return _summarize(label, srs.version, results, ungradable_details, reference_version=reference_srs.version)
 
 
 def _rate(n: int, total: int) -> float:
@@ -258,6 +285,7 @@ def _summarize(
     srs_version: str,
     results: list[ScenarioResult],
     ungradable_details: list[dict] | None = None,
+    reference_version: str | None = None,
 ) -> EvalSummary:
     ungradable_details = ungradable_details or []
     grade_counts = {g: sum(1 for r in results if r.grade == g) for g in GRADE_ORDER}
@@ -267,6 +295,8 @@ def _summarize(
     info_counts = {v: sum(1 for r in results if r.info_integrity == v) for v in reversed(_INFO_SEVERITY)}
     policy_counts = {v: sum(1 for r in results if r.policy_compliance == v) for v in reversed(_POLICY_SEVERITY)}
     core = [r for r in results if r.core]
+    ref = [r for r in results if r.ref_info_integrity]
+    ref_core = [r for r in ref if r.core]
     return EvalSummary(
         label=label,
         srs_version=srs_version,
@@ -286,6 +316,12 @@ def _summarize(
         oracle_judge_disagree_count=sum(
             1 for r in results if r.oracle_verdict == "BROKEN" and r.judge_info_integrity != "BROKEN"
         ),
+        reference_srs_version=reference_version,
+        ref_info_intact_rate=_rate(sum(r.ref_info_integrity == "INTACT" for r in ref), len(ref)) if ref else None,
+        ref_core_info_intact_rate=(_rate(sum(r.ref_info_integrity == "INTACT" for r in ref_core), len(ref_core))
+                                   if ref_core else None),
+        ref_policy_compliant_rate=(_rate(sum(r.ref_policy_compliance == "COMPLIANT" for r in ref), len(ref))
+                                   if ref else None),
     )
 
 
@@ -317,7 +353,7 @@ def self_healing_loop(
         summary = evaluate_set(
             f"round_{round_index}", srs, healing_set, llm_client,
             unit_temperature=unit_temperature, judge_temperature=judge_temperature,
-            n_repeat=n_repeat,
+            n_repeat=n_repeat, reference_srs=initial_srs,
         )
         rounds.append(summary)
 
@@ -642,6 +678,7 @@ def run_full_experiment(
     held_out_summary = evaluate_set(
         "held_out", final_srs, held_out_set, primary_client,
         unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
+        reference_srs=initial_srs,
     )
 
     blackbox_attacks = generate_adaptive_attacks(

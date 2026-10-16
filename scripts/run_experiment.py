@@ -52,6 +52,8 @@ from hongik_selfheal.stats import (  # noqa: E402
     chi_square_independence,
     cochran_q,
     friedman,
+    mcnemar_exact,
+    noninferiority_two_proportions,
     independent_mannwhitney,
     paired_wilcoxon,
 )
@@ -216,6 +218,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _is_core_category(category: str) -> bool:
+    from hongik_selfheal.attack_taxonomy import CORE_KEYS
+    return category in CORE_KEYS
+
+
 def main() -> None:
     args = parse_args()
     config = load_config()
@@ -365,7 +372,28 @@ def main() -> None:
     last_info = {r["scenario_id"]: info_score[r["info_integrity"]] for r in last_round["results"] if r.get("info_integrity")}
     info_ids = [sid for sid in first_info if sid in last_info]
     wilcoxon_info = paired_wilcoxon([first_info[i] for i in info_ids], [last_info[i] for i in info_ids])
+    # 사전 고정 분석(docs/analysis_plan_20261016.md): 핵심 범주, 문항 단위 이분 결과(1=정보 무결성 유지).
+    def _core_intact(rs, key):
+        return {r["scenario_id"]: int(r[key] == "INTACT") for r in rs if r.get("core") and r.get(key)}
+    h1_a = _core_intact(first_round["results"], "ref_info_integrity")
+    h1_b = _core_intact(last_round["results"], "ref_info_integrity")
+    h1_ids = [i for i in h1_a if i in h1_b]
+    h1 = mcnemar_exact([h1_a[i] for i in h1_ids], [h1_b[i] for i in h1_ids])
+    h2_heal = list(_core_intact(last_round["results"], "info_integrity").values())
+    h2_held = list(_core_intact(output["held_out"]["results"], "info_integrity").values())
+    h2 = (noninferiority_two_proportions(sum(h2_heal), len(h2_heal), sum(h2_held), len(h2_held), margin=0.10)
+          if h2_heal and h2_held else None)
+    core_cross = [r for r in cross_model_results if r.get("category") and _is_core_category(r["category"])]
+    h3_groups = [[int(r.get("backend_info_integrity", {}).get(p) == "INTACT") for r in core_cross] for p in providers]
+    h3 = cochran_q(*h3_groups) if core_cross else None
+    preregistered = {
+        "H1_core_info_intact_round1_vs_final_mcnemar(v1.0 기준 채점)": asdict(h1),
+        "H2_core_info_intact_heldout_noninferiority_10pp": asdict(h2) if h2 else None,
+        "H3_core_info_intact_cross_model_cochranq": asdict(h3) if h3 else None,
+        "order": "H1 → H2 → H3 고정 순서 검정(앞 가설이 유의할 때만 다음 가설을 확증적으로 해석)",
+    }
     output["stats"] = {
+        "preregistered": preregistered,
         "wilcoxon_info_integrity_round1_vs_final": asdict(wilcoxon_info),
         "wilcoxon_v1_vs_final_healing_set": asdict(wilcoxon_result),
         "mannwhitney_healing_final_vs_held_out": asdict(mannwhitney_result),

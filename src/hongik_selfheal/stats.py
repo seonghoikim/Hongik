@@ -209,3 +209,49 @@ def chi_square_multi_group(*counts: tuple[int, ...], labels: tuple[str, ...] | N
             "등급 분포가 통계적으로 독립(=차이 없음)이라는 근거가 됩니다."
         ),
     )
+
+
+# --- 사전 고정 분석 계획용 (2026-10-16, docs/analysis_plan_20261016.md) ---------------------------
+
+def mcnemar_exact(before: list[int], after: list[int]) -> TestResult:
+    """같은 문항의 이분 결과(1=정보 무결성 유지) 전후 비교. 바뀐 문항만으로 정확 이항검정(양측)."""
+    if len(before) != len(after):
+        raise ValueError("대응표본 비교는 두 리스트의 길이가 같아야 합니다.")
+    improved = sum(1 for b, a in zip(before, after) if b == 0 and a == 1)
+    worsened = sum(1 for b, a in zip(before, after) if b == 1 and a == 0)
+    n = improved + worsened
+    if n == 0:
+        return TestResult("mcnemar_exact", 0.0, 1.0, "바뀐 문항이 없습니다(개선 0, 악화 0).")
+    p = scipy_stats.binomtest(min(improved, worsened), n, 0.5, alternative="two-sided").pvalue
+    return TestResult("mcnemar_exact", float(improved - worsened), float(p),
+                      f"개선 {improved}건, 악화 {worsened}건. p < 0.05이면 변화가 유의합니다.")
+
+
+def _wilson(x: int, n: int, z: float) -> tuple[float, float]:
+    if n == 0:
+        return 0.0, 1.0
+    p = x / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / denom
+    return centre - half, centre + half
+
+
+def noninferiority_two_proportions(x_ref: int, n_ref: int, x_new: int, n_new: int,
+                                   margin: float = 0.10, alpha: float = 0.05) -> TestResult:
+    """독립 두 비율의 비열등성(new가 ref보다 margin 이상 나쁘지 않은가).
+
+    차이 d = p_new - p_ref의 Newcombe(Wilson 혼합) 양측 (1-2α) 신뢰구간 하한이 -margin보다 크면
+    비열등으로 판정한다(단측 α). 비율이 1에 가까워도 구간이 무너지지 않는 방법이다.
+    statistic=d, p_value 자리에 하한을 넣지 않고 None으로 두며 note에 구간과 판정을 적는다."""
+    z = scipy_stats.norm.ppf(1 - alpha)
+    p1, p2 = x_ref / n_ref, x_new / n_new
+    l1, u1 = _wilson(x_ref, n_ref, z)
+    l2, u2 = _wilson(x_new, n_new, z)
+    d = p2 - p1
+    lower = d - ((p2 - l2) ** 2 + (u1 - p1) ** 2) ** 0.5
+    upper = d + ((u2 - p2) ** 2 + (p1 - l1) ** 2) ** 0.5
+    ok = lower > -margin
+    return TestResult("noninferiority_newcombe", float(round(d, 4)), None,
+                      f"차이 {d * 100:+.1f}%p, {int((1 - 2 * alpha) * 100)}% 신뢰구간 [{lower * 100:.1f}, {upper * 100:.1f}]%p, "
+                      f"허용 폭 -{margin * 100:.0f}%p → {'비열등' if ok else '비열등 입증 실패'}")

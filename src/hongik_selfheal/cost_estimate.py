@@ -127,17 +127,20 @@ def estimate_run(
     unit_user = _tokens(CONTEXT_CHARS + ATTACK_CHARS + 30 + poison_share * POISON_CHARS)
     judge_user = _tokens(ATTACK_CHARS + profile.response_chars + 50 + template_share * REFERENCE_CHARS)
 
-    def eval_stage(n_items: int, n_rules: int) -> None:
+    def eval_stage(n_items: int, n_rules: int, reference: bool = False) -> None:
         unit_sys, judge_sys = sys_sizes(n_rules)
         calls = n_items * n_repeat
         anth.group(calls, unit_sys, unit_user, profile.unit_out, batchable=True)
         anth.group(calls * profile.judge_retry, judge_sys, judge_user, judge_out, batchable=True)
+        if reference and n_rules > 0 and not legacy_8_categories:
+            # fixed-reference judging against policy v1.0 (2026-10-16): one more judge pass per call
+            anth.group(calls * profile.judge_retry, sys_sizes(0)[1], judge_user, judge_out, batchable=True)
 
     anth.group(1, sys_sizes(0)[1], judge_user, judge_out, batchable=False)   # fallback check
     for r in range(rounds):
-        eval_stage(n_heal, round(profile.rules_per_round * r))
+        eval_stage(n_heal, round(profile.rules_per_round * r), reference=True)
     final_rules = round(profile.rules_per_round * (rounds - 1))
-    eval_stage(n_held, final_rules)                                                     # held-out
+    eval_stage(n_held, final_rules, reference=True)                                     # held-out
     eval_stage(2 * adaptive_n, final_rules)                                             # black + white box
     anth.group(rounds - 1, 0, profile.meta_in, profile.meta_out, batchable=False)        # Meta-Rule generator
     unit_sys, judge_sys = sys_sizes(final_rules)                                        # cross-model check
