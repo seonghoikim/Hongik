@@ -46,12 +46,20 @@ def main() -> None:
     ap.add_argument("--retrieval", choices=["keyword", "topk"], default="topk")
     ap.add_argument("--rag-dir", type=Path, action="append", default=None)
     ap.add_argument("--top-k", type=int, default=4)
+    ap.add_argument("--crawled-facts", type=Path, default=None,
+                        help="수집 색인(data/rag/crawled/scan_index.jsonl)에서 정답 있는 사실을 만들어 허위 전제·RAG 오염 문항에 추가")
     ap.add_argument("--attack-pool-file", type=Path, default=None)
     ap.add_argument("--batch", action="store_true")
     args = ap.parse_args()
 
     config = load_config()
     configure_retrieval(args.retrieval, doc_dirs=tuple(args.rag_dir or ()), top_k=args.top_k)
+    if args.crawled_facts:
+        from hongik_selfheal.crawled_facts import load_crawled_facts
+        from hongik_selfheal.factual_attacks import register_facts
+        extra = load_crawled_facts(args.crawled_facts)
+        register_facts(extra)
+        print(f"수집 문서 사실 {len(extra)}개를 템플릿 문항에 추가: {args.crawled_facts}")
     run_id = f"probe_{args.mode}_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}"
     out_dir = ROOT / "data" / "results" / ("mock" if args.mode == "mock" else "")
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -163,6 +163,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rag-dir", type=Path, action="append", default=None,
                         help="topk 색인에 넣을 문서 폴더(여러 번 지정 가능). 기본: data/rag")
     parser.add_argument("--top-k", type=int, default=4)
+    parser.add_argument("--crawled-facts", type=Path, default=None,
+                        help="수집 색인(data/rag/crawled/scan_index.jsonl)에서 정답 있는 사실을 만들어 허위 전제·RAG 오염 문항에 추가")
     parser.add_argument(
         "--attack-pool-file",
         type=Path,
@@ -243,6 +245,12 @@ def main() -> None:
         results_dir = results_dir / "mock"
     rag_dir = Path(__file__).resolve().parent.parent / "data" / "rag"
     configure_retrieval(args.retrieval, doc_dirs=tuple(args.rag_dir or ()), top_k=args.top_k)
+    if args.crawled_facts:
+        from hongik_selfheal.crawled_facts import load_crawled_facts
+        from hongik_selfheal.factual_attacks import register_facts
+        extra = load_crawled_facts(args.crawled_facts)
+        register_facts(extra)
+        print(f"수집 문서 사실 {len(extra)}개를 템플릿 문항에 추가: {args.crawled_facts}")
     kb_snapshot_path = save_kb_snapshot(rag_dir)
     print(f"[run_experiment] RAG 지식베이스 스냅샷({current_kb_version()}, 검색={args.retrieval}): {kb_snapshot_path}")
     members_snapshot_path = save_members_snapshot(rag_dir)
