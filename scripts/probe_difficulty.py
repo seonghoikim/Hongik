@@ -27,7 +27,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from hongik_selfheal.attack_generator import category_targets, generate_full_pool, load_pool, save_pool, stratified_split  # noqa: E402
+from hongik_selfheal.attack_generator import (NO_EXCLUSIONS, category_targets, exclusions_from_pools,  # noqa: E402
+                                              generate_full_pool, load_pool, pool_overlap, save_pool,
+                                              stratified_split)
 from hongik_selfheal.attack_taxonomy import CORE_KEYS, PRIMARY_KEYS  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
 from hongik_selfheal.experiment import evaluate_set  # noqa: E402
@@ -88,6 +90,9 @@ def main() -> None:
                     help="공격 풀 파일의 템플릿 문항(정답 있는 문항)만 현재 생성기로 같은 개수만큼 다시 만든다(2026-10-16 재탐색)")
     ap.add_argument("--gate-categories", choices=["core", "primary"], default="core",
                     help="GO/NO-GO 실패율을 계산할 범주. core=핵심 5개(기존), primary=주 지표 2개(분석 계획 v2)")
+    ap.add_argument("--exclude-pool", action="append", default=[],
+                    help="이전 공격 풀 파일(글롭 가능, 여러 번 지정). 그 풀의 질문 문장·사실·가상 회원을 템플릿 문항에서 "
+                         "건너뛰고, 생성 뒤 겹침이 0개가 아니면 실행하지 않는다(2026-10-16)")
     ap.add_argument("--batch", action="store_true")
     args = ap.parse_args()
 
@@ -104,6 +109,14 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     save_kb_snapshot(ROOT / "data" / "rag")
 
+    exclude_files = sorted({str(p.relative_to(ROOT)) for pat in args.exclude_pool for p in ROOT.glob(pat)})
+    if args.exclude_pool and not exclude_files:
+        sys.exit(f"--exclude-pool에 맞는 파일이 없습니다: {args.exclude_pool}")
+    exclude = exclusions_from_pools([ROOT / f for f in exclude_files]) if exclude_files else NO_EXCLUSIONS
+    if exclude_files:
+        print(f"이전 풀 {len(exclude_files)}개 제외: 질문 {len(exclude.texts)}, 사실 {len(exclude.facts)}, "
+              f"가상 회원 {len(exclude.member_ids)}")
+
     clients = build_ensemble_pool(config, force_provider=args.mode, batch=args.batch)
     targets = category_targets(args.n_per_category, args.n_supplementary)
     if args.attack_pool_file:
@@ -113,12 +126,18 @@ def main() -> None:
             n_fp = sum(1 for s in pool if s.oracle and s.category == "misinformation")
             n_rp = sum(1 for s in pool if s.oracle and s.category == "rag_poisoning")
             pool = [s for s in pool if not (s.oracle and s.category in ("misinformation", "rag_poisoning"))]
-            pool += false_premise_scenarios(n_fp) + rag_poisoning_scenarios(n_rp)
+            pool += false_premise_scenarios(n_fp, exclude=exclude) + rag_poisoning_scenarios(n_rp, exclude=exclude)
             save_pool(pool, out_dir / f"attack_pool_{run_id}.json")
             print(f"템플릿 문항 갱신: 허위 전제 {n_fp}개, RAG 오염 {n_rp}개")
     else:
-        pool = generate_full_pool({k: 2 * v for k, v in targets.items()}, llm_client=clients[args.redteam_provider])
+        pool = generate_full_pool({k: 2 * v for k, v in targets.items()}, llm_client=clients[args.redteam_provider],
+                                  exclude=exclude)
         save_pool(pool, out_dir / f"attack_pool_{run_id}.json")
+    overlap = pool_overlap(pool, exclude)
+    if overlap:
+        sys.exit(f"이전 풀과 겹치는 문항 {len(overlap)}개 — 실행하지 않습니다: {overlap[:10]}")
+    if exclude_files:
+        print(f"이전 풀과 겹침 0개 확인 (문항 {len(pool)}개)")
     probe_set, _ = stratified_split(pool, healing_per_cat=targets, heldout_per_cat=targets)
 
     summary = evaluate_set("probe", initial_srs_v1(), probe_set, clients[args.primary_provider],
@@ -143,6 +162,7 @@ def main() -> None:
         "oracle_judge_disagree": summary.oracle_judge_disagree_count, "ungradable": summary.ungradable_count,
         "gate_categories": args.gate_categories, "gate_keys": list(gate_keys), "core_keys": list(CORE_KEYS),
         "attack_pool_file": str(args.attack_pool_file) if args.attack_pool_file else None,
+        "exclude_pool_files": exclude_files, "exclude_overlap": len(overlap),
         "items": item_records(summary.results, probe_set),
     }
     path = out_dir / f"{run_id}.json"
