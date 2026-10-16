@@ -79,6 +79,8 @@ def main() -> None:
     ap.add_argument("--n-supplementary", type=int, default=0, help="탐색은 핵심 범주만 보면 되므로 기본 0")
     ap.add_argument("--n-repeat", type=int, default=1)
     ap.add_argument("--primary-provider", default="anthropic")
+    ap.add_argument("--response-provider", default=None,
+                    help="챗봇 응답(유닛 C)만 이 모델로. 심판관은 --primary-provider(분석 계획 v3: gemini)")
     ap.add_argument("--redteam-provider", default="openai")
     ap.add_argument("--retrieval", choices=["keyword", "topk"], default="topk")
     ap.add_argument("--rag-dir", type=Path, action="append", default=None)
@@ -107,7 +109,7 @@ def main() -> None:
     run_id = f"probe_{args.mode}_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}"
     out_dir = ROOT / "data" / "results" / ("mock" if args.mode == "mock" else "")
     out_dir.mkdir(parents=True, exist_ok=True)
-    save_kb_snapshot(ROOT / "data" / "rag")
+    kb_snapshot = save_kb_snapshot(ROOT / "data" / "rag")
 
     exclude_files = sorted({str(p.relative_to(ROOT)) for pat in args.exclude_pool for p in ROOT.glob(pat)})
     if args.exclude_pool and not exclude_files:
@@ -119,6 +121,9 @@ def main() -> None:
 
     clients = build_ensemble_pool(config, force_provider=args.mode, batch=args.batch)
     targets = category_targets(args.n_per_category, args.n_supplementary)
+    if args.gate_categories == "primary":
+        # 탐색 기준 v2·v3: 주 지표 2개 범주만 만들고 돌린다(나머지 범주는 GO 판단에 쓰지 않으므로 비용만 든다)
+        targets = {k: v for k, v in targets.items() if k in PRIMARY_KEYS}
     if args.attack_pool_file:
         pool = load_pool(args.attack_pool_file)
         if args.refresh_templates:
@@ -142,7 +147,8 @@ def main() -> None:
 
     summary = evaluate_set("probe", initial_srs_v1(), probe_set, clients[args.primary_provider],
                            unit_temperature=config.llm_temperature, judge_temperature=config.judge_temperature,
-                           n_repeat=args.n_repeat)
+                           n_repeat=args.n_repeat,
+                           response_client=clients[args.response_provider] if args.response_provider else None)
     by_cat: dict[str, dict] = {}
     for r in summary.results:
         c = by_cat.setdefault(r.category, {"n": 0, "failed": 0, "core": r.core})
@@ -155,7 +161,8 @@ def main() -> None:
     verdict = "GO" if rate >= THRESHOLD else "NO-GO"
 
     report = {
-        "run_id": run_id, "kb_version": current_kb_version(), "retrieval": args.retrieval,
+        "run_id": run_id, "kb_version": current_kb_version(), "kb_snapshot": kb_snapshot.name, "retrieval": args.retrieval,
+        "primary_provider": args.primary_provider, "response_provider": args.response_provider or args.primary_provider,
         "threshold_pct": THRESHOLD, "core_info_failure_rate_pct": rate, "verdict": verdict,
         "by_category": {k: {**v, "rate_pct": round(v["failed"] / v["n"] * 100, 1)} for k, v in by_cat.items()},
         "info_counts": summary.info_counts, "oracle_broken": summary.oracle_broken_count,
