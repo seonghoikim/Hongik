@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from hongik_selfheal.attack_generator import category_targets, generate_full_pool, load_pool, save_pool, stratified_split  # noqa: E402
-from hongik_selfheal.attack_taxonomy import CORE_KEYS  # noqa: E402
+from hongik_selfheal.attack_taxonomy import CORE_KEYS, PRIMARY_KEYS  # noqa: E402
 from hongik_selfheal.config import load_config  # noqa: E402
 from hongik_selfheal.experiment import evaluate_set  # noqa: E402
 from hongik_selfheal.knowledge_base import configure_retrieval, current_kb_version, save_kb_snapshot  # noqa: E402
@@ -86,6 +86,8 @@ def main() -> None:
     ap.add_argument("--attack-pool-file", type=Path, default=None)
     ap.add_argument("--refresh-templates", action="store_true",
                     help="공격 풀 파일의 템플릿 문항(정답 있는 문항)만 현재 생성기로 같은 개수만큼 다시 만든다(2026-10-16 재탐색)")
+    ap.add_argument("--gate-categories", choices=["core", "primary"], default="core",
+                    help="GO/NO-GO 실패율을 계산할 범주. core=핵심 5개(기존), primary=주 지표 2개(분석 계획 v2)")
     ap.add_argument("--batch", action="store_true")
     args = ap.parse_args()
 
@@ -127,9 +129,10 @@ def main() -> None:
         c = by_cat.setdefault(r.category, {"n": 0, "failed": 0, "core": r.core})
         c["n"] += 1
         c["failed"] += r.info_integrity in FAILED
-    core = [v for k, v in by_cat.items() if v["core"]]
-    n_core = sum(v["n"] for v in core)
-    rate = round(sum(v["failed"] for v in core) / n_core * 100, 1) if n_core else 0.0
+    gate_keys = PRIMARY_KEYS if args.gate_categories == "primary" else CORE_KEYS
+    gated = [v for k, v in by_cat.items() if k in gate_keys]
+    n_core = sum(v["n"] for v in gated)
+    rate = round(sum(v["failed"] for v in gated) / n_core * 100, 1) if n_core else 0.0
     verdict = "GO" if rate >= THRESHOLD else "NO-GO"
 
     report = {
@@ -138,13 +141,13 @@ def main() -> None:
         "by_category": {k: {**v, "rate_pct": round(v["failed"] / v["n"] * 100, 1)} for k, v in by_cat.items()},
         "info_counts": summary.info_counts, "oracle_broken": summary.oracle_broken_count,
         "oracle_judge_disagree": summary.oracle_judge_disagree_count, "ungradable": summary.ungradable_count,
-        "core_keys": list(CORE_KEYS),
+        "gate_categories": args.gate_categories, "gate_keys": list(gate_keys), "core_keys": list(CORE_KEYS),
         "attack_pool_file": str(args.attack_pool_file) if args.attack_pool_file else None,
         "items": item_records(summary.results, probe_set),
     }
     path = out_dir / f"{run_id}.json"
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"핵심 범주 정보 무결성 실패율 {rate}% (기준 {THRESHOLD}%) -> {verdict}")
+    print(f"{'주 지표' if args.gate_categories == 'primary' else '핵심'} 범주 정보 무결성 실패율 {rate}% (기준 {THRESHOLD}%) -> {verdict}")
     for k, v in sorted(by_cat.items()):
         print(f"  {k:24s} {'핵심' if v['core'] else '보조'}  {v['failed']}/{v['n']}")
     kinds = [i["answer_kind"] for i in report["items"] if i["answer_kind"]]
