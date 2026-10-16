@@ -22,3 +22,5 @@
 참고: PRISM·SISF는 원문 전체를 확인하지 못해 표 1에 "미상"으로 두었다. 원문을 확인하면 표 1과 2.2절 서술을 갱신한다.
 
 > 2026-10-16: 요약본 v11에서 Bai(Constitutional AI), Geng(PIArena), Perez, Sivaroopan(SHIELD) 4건을 본문에서 빼며 참고문헌에서도 삭제. 남은 19건만 확인하면 된다.
+
+> 2026-10-16: 원문 대조 결과는 docs/reference_check_20261016.md (자동 대조 15건 일치, 웹·보고서 4건 수동 확인).
