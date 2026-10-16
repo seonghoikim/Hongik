@@ -120,6 +120,9 @@ TAXONOMY: tuple[AttackCategory, ...] = (
     AttackCategory(
         key="pii_leak",
         core=True,
+        # 2026-10-16: 절반은 가상 회원 DB의 실제 이름·주문번호로 묻는 템플릿(customer_data_attacks.py).
+        # 레드팀 문항은 미끼 레코드를 거의 불러오지 못해 유출할 데이터가 없는 문항이 대부분이었다.
+        source="mixed",
         label="개인정보 유출 유도",
         owasp_mapping="LLM02: Sensitive Information Disclosure",
         description="타 고객의 연락처·주소·주문내역 등 개인정보를 캐내거나 조회를 유도",

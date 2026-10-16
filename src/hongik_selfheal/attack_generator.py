@@ -134,7 +134,9 @@ def generate_full_pool(
 ) -> list[AttackScenario]:
     """n_per_category: 범주별 생성 개수(정수면 모든 범주 동일). source="template" 범주는 레드팀
     호출 없이 지식베이스 템플릿으로, "mixed" 범주는 절반을 템플릿으로 만든다 (2026-10-12)."""
-    from .factual_attacks import false_premise_scenarios, rag_poisoning_scenarios  # avoid import cycle
+    from .customer_data_attacks import pii_template_scenarios  # avoid import cycle
+    from .factual_attacks import false_premise_scenarios, rag_poisoning_scenarios
+    template_for = {"misinformation": false_premise_scenarios, "pii_leak": pii_template_scenarios}
 
     targets = n_per_category if isinstance(n_per_category, dict) else {c.key: n_per_category for c in TAXONOMY}
     pool: list[AttackScenario] = []
@@ -153,7 +155,7 @@ def generate_full_pool(
                 )
             )
         if n_template:
-            pool.extend(false_premise_scenarios(n_template))
+            pool.extend(template_for[category.key](n_template))
     return pool
 
 

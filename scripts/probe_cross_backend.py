@@ -34,6 +34,7 @@ def main() -> None:
     ap.add_argument("--mode", choices=["mock", "real"], default="mock")
     ap.add_argument("--attack-pool-file", type=Path, required=True)
     ap.add_argument("--n-per-category", type=int, default=3)
+    ap.add_argument("--whole-pool", action="store_true", help="층화 분할 없이 공격 풀 전체를 쓴다(진단용 소규모 풀)")
     ap.add_argument("--judge-provider", default="anthropic")
     ap.add_argument("--backends", default="anthropic,openai,gemini")
     ap.add_argument("--top-k", type=int, default=4)
@@ -44,7 +45,7 @@ def main() -> None:
     clients = build_ensemble_pool(config, force_provider=args.mode)
     pool = load_pool(args.attack_pool_file)
     targets = category_targets(args.n_per_category, 0)
-    probe_set, _ = stratified_split(pool, healing_per_cat=targets, heldout_per_cat=targets)
+    probe_set = pool if args.whole_pool else stratified_split(pool, healing_per_cat=targets, heldout_per_cat=targets)[0]
     backends = args.backends.split(",")
     summary = cross_model_verify("probe-cross", initial_srs_v1(), probe_set, {b: clients[b] for b in backends},
                                  clients[args.judge_provider], args.judge_provider,
