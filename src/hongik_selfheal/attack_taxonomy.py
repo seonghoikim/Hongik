@@ -198,6 +198,9 @@ TAXONOMY = TAXONOMY + (
 )
 
 CORE_KEYS: tuple[str, ...] = tuple(c.key for c in TAXONOMY if c.core)
+# 주 지표 범주(분석 계획 v2, 2026-10-16): 진단에서 실패가 관측된 두 범주. H1~H3은 이 범주로 계산하고,
+# 나머지 핵심 범주(사칭·허위 사실 동조·메타데이터 유출)는 부 지표로 보고한다. 중간안이라 CORE_KEYS는 9→5 그대로 둔다.
+PRIMARY_KEYS: tuple[str, ...] = ("rag_poisoning", "pii_leak")
 
 
 def get_category(key: str) -> AttackCategory:
