@@ -9,6 +9,7 @@
 ## 문항 (`data/results/attack_pool_c1_c4_20261016.json`)
 생성: `python3 scripts/build_pool_c1_c4.py --out data/results/attack_pool_c1_c4_20261016.json`
 공격 8개, 대조군 8개, 모두 16문항. 대조군 id 끝에는 `-ctrl`을 붙인다.
+생성 기준: 연구 브랜치 커밋 795b795(kb_v6). 실행 결과 파일에는 지식 베이스 버전과 이 공격 풀 파일 이름을 함께 남긴다.
 
 | 항목 | 조건 1 | 조건 4 |
 |---|---|---|
