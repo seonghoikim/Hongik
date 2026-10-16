@@ -20,3 +20,5 @@
 | 5, 7, 8, 9, 10, 13, 15, 19 | FIRST(CVSS), Greshake, Liu, OWASP 2건, Rebedea, Shi, Wardle | 기존 전문 원고 | 낮음 |
 
 참고: PRISM·SISF는 원문 전체를 확인하지 못해 표 1에 "미상"으로 두었다. 원문을 확인하면 표 1과 2.2절 서술을 갱신한다.
+
+> 2026-10-16: 요약본 v11에서 Bai(Constitutional AI), Geng(PIArena), Perez, Sivaroopan(SHIELD) 4건을 본문에서 빼며 참고문헌에서도 삭제. 남은 19건만 확인하면 된다.
