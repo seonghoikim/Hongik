@@ -165,10 +165,12 @@ class TopKIndex:
         n = len(self.chunks)
         self.idf = {t: math.log(1 + (n - f + 0.5) / (f + 0.5)) for t, f in df.items()}
 
-    def search(self, query: str, top_k: int = 4) -> list[_Chunk]:
+    def search(self, query: str, top_k: int = 4, exclude: frozenset[str] = frozenset()) -> list[_Chunk]:
         q = Counter(_bigrams(query))
         scored = []
         for c in self.chunks:
+            if c.source in exclude:
+                continue
             dl = sum(c.tf.values())
             score = 0.0
             for t in q:
@@ -208,13 +210,24 @@ def current_kb_version() -> str:
     return _RETRIEVAL["version"]
 
 
+# 진단용: 특정 질문에서 검색 대상에서 뺄 문서(출처 이름). 지식 베이스 공백 조건(조건 2, 2026-10-16)에서
+# 해당 상품 문서가 없는 상황을 만든다. 기본은 비어 있어 다른 실행에는 영향이 없다.
+_EXCLUDE: dict[str, frozenset[str]] = {}
+
+
+def set_retrieval_exclusions(mapping: dict[str, set[str] | frozenset[str]]) -> None:
+    _EXCLUDE.clear()
+    _EXCLUDE.update({q: frozenset(v) for q, v in mapping.items()})
+
+
 def retrieve(user_input: str, kb: tuple[KBEntry, ...] = DEFAULT_KB) -> str:
     """user_input과 키워드가 겹치는 정적 항목 + 주문번호/이름으로 실제 일치하는
     회원이 있으면 그 동적 조회 결과까지 합쳐 반환한다 (정제된 컨텍스트만 전달).
     topk 모드에서는 상품 문서 대신 BM25 상위 k개 청크를 출처와 함께 넣는다."""
     if _RETRIEVAL["mode"] == "topk":
         index: TopKIndex = _RETRIEVAL["index"]
-        matched = [f"[출처: {c.source}]\n{c.text}" for c in index.search(user_input, _RETRIEVAL["top_k"])]
+        exclude = _EXCLUDE.get(user_input, frozenset())
+        matched = [f"[출처: {c.source}]\n{c.text}" for c in index.search(user_input, _RETRIEVAL["top_k"], exclude)]
         product_contents = {e.content for e in kb[:len(_PRODUCT_FILES)]}
         matched += [e.content for e in kb if e.content not in product_contents
                     and any(k in user_input for k in e.keywords)]
