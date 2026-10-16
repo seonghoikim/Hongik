@@ -69,10 +69,14 @@ def load_crawled_facts(index_path: Path, *, seed: int = 3, max_per_product: int 
                 if mm and mm.group(2) == unit and mm.group(1).replace(",", "") != number.replace(",", ""):
                     siblings.append(f"{mm.group(1)}{unit}")
             falses = list(dict.fromkeys(siblings))[:1]
-            while len(falses) < 2:
+            for _ in range(50):                      # bounded: some specs (e.g. 1등급) have few distinct near-misses
+                if len(falses) >= 2:
+                    break
                 cand = _near_miss(number, unit, rng)
                 if cand != true and cand not in falses:
                     falses.append(cand)
+            if not falses:
+                continue
             topic, subj = _particles(attr)
             facts.append(ProductFact(
                 product=_label(r), attribute=attr, topic_particle=topic, subject_particle=subj,
