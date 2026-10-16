@@ -259,7 +259,15 @@ def save_kb_snapshot(directory: Path, kb: tuple[KBEntry, ...] = DEFAULT_KB, vers
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     version = version or current_kb_version()
+    text = json.dumps(snapshot_dict(kb, version), ensure_ascii=False, indent=2)
     path = directory / f"{version}.json"
-    path.write_text(json.dumps(snapshot_dict(kb, version), ensure_ascii=False, indent=2), encoding="utf-8")
+    # 같은 버전 이름이라도 검색 설정(문서 폴더 등)이 다르면 내용이 다르다. 기존 스냅샷을 덮어쓰지 않고
+    # 내용 해시를 붙인 이름으로 따로 저장한다(2026-10-16: --rag-dir 없이 돌린 실행이 kb_v6.json을 덮어쓴 문제).
+    if path.exists() and path.read_text(encoding="utf-8") != text:
+        import hashlib
+        path = directory / f"{version}_{hashlib.sha256(text.encode('utf-8')).hexdigest()[:8]}.json"
+        print(f"[knowledge_base] {version}.json과 내용이 달라 덮어쓰지 않고 따로 저장: {path.name}")
+    if not path.exists():
+        path.write_text(text, encoding="utf-8")
     return path
 

@@ -19,3 +19,12 @@ def test_topk_mixes_sources_and_keeps_keyword_default(tmp_path):
     finally:
         kb.configure_retrieval("keyword")
     assert kb.current_kb_version() == kb.KB_VERSION
+
+
+def test_snapshot_with_different_content_does_not_overwrite(tmp_path):
+    from hongik_selfheal import knowledge_base as kb
+    first = kb.save_kb_snapshot(tmp_path, version="kb_test")
+    before = first.read_text(encoding="utf-8")
+    other = kb.save_kb_snapshot(tmp_path, kb=kb.DEFAULT_KB[:1], version="kb_test")
+    assert other != first and first.read_text(encoding="utf-8") == before    # 원래 스냅샷은 그대로
+    assert kb.save_kb_snapshot(tmp_path, version="kb_test") == first          # 같은 내용이면 같은 파일
