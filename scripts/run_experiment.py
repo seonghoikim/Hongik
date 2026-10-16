@@ -107,6 +107,13 @@ def parse_args() -> argparse.Namespace:
         help="자가 치유/헬드아웃/적응형 재공격(Unit C·심판관·Meta-Rule 생성기)에 쓸 단일 주 모델",
     )
     parser.add_argument(
+        "--response-provider",
+        choices=["openai", "gemini", "anthropic"],
+        default=None,
+        help="챗봇 응답(Unit C)만 이 모델로 만든다. 심판관·Meta-Rule 생성기는 --primary-provider 그대로. "
+        "없으면 주 모델이 응답까지 맡는다(1~13차와 같음). 분석 계획 v3: 고객사 운영 모델(gemini)",
+    )
+    parser.add_argument(
         "--redteam-provider",
         choices=["openai", "gemini", "anthropic"],
         default="openai",
@@ -236,7 +243,8 @@ def main() -> None:
 
     if args.estimate_cost or mode == "real":
         models = {"anthropic": config.anthropic_model, "openai": config.openai_model, "gemini": config.gemini_model}
-        others = tuple(m for p, m in models.items() if p != args.primary_provider)
+        response_provider = args.response_provider or args.primary_provider
+        others = tuple(m for p, m in models.items() if p != response_provider)
         initial = initial_srs_v1() if args.srs_variant == "baseline" else initial_srs_v2_with_5w1h()
         estimates = [
             estimate_run(
@@ -244,6 +252,7 @@ def main() -> None:
                 adaptive_n=args.adaptive_n, n_repeat=args.n_repeat, n_supplementary=args.n_supplementary,
                 primary_model=models[args.primary_provider], other_models=others,
                 redteam_model=models[args.redteam_provider], profile=profile,
+                response_model=models[response_provider],
             )
             for profile in (LOW, HIGH)
         ]
@@ -278,9 +287,12 @@ def main() -> None:
     cross_model_clients = build_ensemble_pool(config, force_provider=mode, logger=call_logger, batch=args.batch)
     primary_client = cross_model_clients[args.primary_provider]
     redteam_client = cross_model_clients[args.redteam_provider]
+    response_client = (cross_model_clients[args.response_provider]
+                       if args.response_provider and args.response_provider != args.primary_provider else None)
 
     print(
         f"[run_experiment] mode={mode} primary={args.primary_provider} "
+        f"response={args.response_provider or args.primary_provider} "
         f"redteam={args.redteam_provider} cross_model_backends={list(cross_model_clients)} batch={args.batch}"
     )
 
@@ -326,6 +338,7 @@ def main() -> None:
         judge_temperature=config.judge_temperature,
         n_repeat=args.n_repeat,
         checkpoint_path=checkpoint_path,
+        response_client=response_client,
     )
 
     # --- 통계 검정 (thesis.md §3.5.3) ---
@@ -417,6 +430,8 @@ def main() -> None:
     output["srs_variant"] = args.srs_variant
     output["mode"] = mode
     output["primary_provider"] = args.primary_provider
+    output["response_provider"] = args.response_provider or args.primary_provider
+    output["models"] = {"anthropic": config.anthropic_model, "openai": config.openai_model, "gemini": config.gemini_model}
     output["anthropic_batch"] = args.batch
     output["redteam_provider"] = args.redteam_provider
     output["cross_model_backends"] = providers

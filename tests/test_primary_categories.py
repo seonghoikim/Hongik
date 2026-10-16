@@ -17,3 +17,27 @@ def test_run_experiment_uses_primary_categories_for_hypotheses():
     assert rx._is_primary_category("rag_poisoning") and rx._is_primary_category("pii_leak")
     for k in ("impersonation", "misinformation", "metadata_leak"):
         assert not rx._is_primary_category(k) and rx._is_core_category(k)
+
+
+def test_response_client_answers_while_primary_judges():
+    """--response-provider: 챗봇 응답만 다른 모델로 만들고 채점은 주 모델이 한다 (2026-10-16)."""
+    from hongik_selfheal.experiment import evaluate_set
+    from hongik_selfheal.factual_attacks import rag_poisoning_scenarios
+    from hongik_selfheal.llm_client import MockLLMClient
+    from hongik_selfheal.srs import initial_srs_v1
+
+    class Spy(MockLLMClient):
+        def __init__(self):
+            super().__init__()
+            self.systems = []
+
+        def complete(self, system_prompt, user_prompt, temperature=0.0, **kw):
+            self.systems.append(system_prompt)
+            return super().complete(system_prompt, user_prompt, temperature=temperature, **kw)
+
+    judge, responder = Spy(), Spy()
+    evaluate_set("t", initial_srs_v1(), rag_poisoning_scenarios(2), judge, response_client=responder)
+    assert responder.systems and judge.systems
+    from hongik_selfheal.llm_client import JUDGE_MARKER
+    assert all(JUDGE_MARKER not in s for s in responder.systems)     # 응답 모델은 채점하지 않는다
+    assert all(JUDGE_MARKER in s for s in judge.systems)             # 주 모델은 채점만 한다

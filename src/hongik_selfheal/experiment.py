@@ -164,6 +164,7 @@ def evaluate_set(
     judge_temperature: float = 0.0,
     n_repeat: int = 1,
     reference_srs: SRS | None = None,
+    response_client: LLMClient | None = None,
 ) -> EvalSummary:
     """시나리오별로 (Unit C 응답 → 심판관 채점)을 n_repeat회 독립 반복하고
     다수결로 집계한다 (thesis.md §3.5.1 N=반복시행, 종합 점검 2026-08-12 —
@@ -178,8 +179,9 @@ def evaluate_set(
     # 응답 생성과 채점을 단계별로 모아 보낸다: 배치 클라이언트면 라운드당 응답 배치 1개,
     # 채점 배치 1개가 된다(2026-10-11 비용 절감). 각 호출은 여전히 독립된 무상태 호출이다.
     items = [scenario for scenario in scenarios for _ in range(n_repeat)]
+    # 2026-10-16: 응답 모델(유닛 C)을 심판관과 따로 둘 수 있다. 없으면 기존처럼 llm_client 하나로 응답·채점한다.
     pipelines = run_pipeline_many(
-        [s.text for s in items], srs, llm_client, temperature=unit_temperature,
+        [s.text for s in items], srs, response_client or llm_client, temperature=unit_temperature,
         extra_contexts=[s.poison_context for s in items],
     )
     judged = evaluate_responses(
@@ -338,6 +340,7 @@ def self_healing_loop(
     judge_temperature: float = 0.0,
     n_repeat: int = 1,
     checkpoint_path: Path | None = None,
+    response_client: LLMClient | None = None,
 ) -> tuple[list[EvalSummary], SRS]:
     """thesis.md §4.1의 5단계를 총점 만점(또는 라운드 한도)까지 반복한다.
 
@@ -355,7 +358,7 @@ def self_healing_loop(
         summary = evaluate_set(
             f"round_{round_index}", srs, healing_set, llm_client,
             unit_temperature=unit_temperature, judge_temperature=judge_temperature,
-            n_repeat=n_repeat, reference_srs=initial_srs,
+            n_repeat=n_repeat, reference_srs=initial_srs, response_client=response_client,
         )
         rounds.append(summary)
 
@@ -644,6 +647,7 @@ def run_full_experiment(
     judge_temperature: float = 0.0,
     n_repeat: int = 1,
     checkpoint_path: Path | None = None,
+    response_client: LLMClient | None = None,
 ) -> dict:
     """§4.1(자가 치유) → §3.5.1(헬드아웃 검증) → §5.4(적응형 재공격) →
     §3.5.5(교차 모델 검증) 전체 실행. 자가 치유 루프·헬드아웃·적응형 재공격의
@@ -661,6 +665,9 @@ def run_full_experiment(
     이전에는 이 두 환경변수를 어떤 코드도 참조하지 않는 죽은 설정이었다).
     n_repeat>1이면 §3.5.1의 N=반복시행을 실제로 수행한다(자가 치유 루프·
     헬드아웃·적응형 재공격에 적용, 교차 모델 검증은 비용 상 제외).
+
+    response_client(2026-10-16): 주어지면 강건화 루프·헬드아웃·적응형 재공격의 챗봇 응답(유닛 C)만 이 모델로
+    만든다. 심판관과 보강 규칙 생성기는 primary_client 그대로다(분석 계획 v3: 응답 모델 = 고객사 운영 모델).
     """
     try:
         fallback_check = validate_deterministic_fallback(
@@ -674,13 +681,13 @@ def run_full_experiment(
     healing_rounds, final_srs = self_healing_loop(
         initial_srs, healing_set, primary_client, max_rounds=max_rounds, srs_dir=srs_dir,
         unit_temperature=unit_temperature, judge_temperature=judge_temperature,
-        n_repeat=n_repeat, checkpoint_path=checkpoint_path,
+        n_repeat=n_repeat, checkpoint_path=checkpoint_path, response_client=response_client,
     )
 
     held_out_summary = evaluate_set(
         "held_out", final_srs, held_out_set, primary_client,
         unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
-        reference_srs=initial_srs,
+        reference_srs=initial_srs, response_client=response_client,
     )
 
     blackbox_attacks = generate_adaptive_attacks(
@@ -693,10 +700,12 @@ def run_full_experiment(
     blackbox_summary = evaluate_set(
         "adaptive_blackbox", final_srs, blackbox_attacks, primary_client,
         unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
+        response_client=response_client,
     )
     whitebox_summary = evaluate_set(
         "adaptive_whitebox", final_srs, whitebox_attacks, primary_client,
         unit_temperature=unit_temperature, judge_temperature=judge_temperature, n_repeat=n_repeat,
+        response_client=response_client,
     )
 
     cross_model_summary = cross_model_verify(
@@ -707,6 +716,7 @@ def run_full_experiment(
 
     return {
         "final_srs_version": final_srs.version,
+        "response_model_separate": response_client is not None,
         "n_repeat": n_repeat,
         "deterministic_fallback_check": fallback_check,
         "healing_rounds": [asdict(r) for r in healing_rounds],
