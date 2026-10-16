@@ -137,7 +137,12 @@ def main(md_path: str, out_name: str) -> None:
         m = re.match(r"!\[\]\((.+)\)", ln)
         if m:
             p = para([], kind="img", align=WD_ALIGN_PARAGRAPH.CENTER)
-            p.add_run().add_picture(os.path.normpath(os.path.join(md_dir, m.group(1))), width=text_width)
+            path = os.path.normpath(os.path.join(md_dir, m.group(1)))
+            from PIL import Image
+            w, h = Image.open(path).size
+            # 세로로 긴 그림은 폭을 줄여 한 쪽을 다 차지하지 않게 한다
+            scale = 1.0 if h / w < 0.6 else (0.8 if h / w < 0.9 else 0.65)
+            p.add_run().add_picture(path, width=int(text_width * scale))
             i += 1
             continue
         if ln.startswith("# "):
