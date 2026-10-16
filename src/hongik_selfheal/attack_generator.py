@@ -71,6 +71,51 @@ class AttackScenario:
     poison_context: str | None = None
 
 
+@dataclass(frozen=True)
+class PoolExclusions:
+    """Items already used in earlier attack pools (2026-10-16). Template generators skip any item whose
+    question text, fact (oracle "fact" or "source") or fake member (oracle "member_id") appears here, so a
+    new probe does not reuse items from earlier diagnostics (docs/probe_criterion_v2 note, commit b4fb763)."""
+    texts: frozenset[str] = frozenset()
+    facts: frozenset[str] = frozenset()
+    member_ids: frozenset[str] = frozenset()
+    sources: tuple[str, ...] = ()
+
+    def hits(self, text: str, oracle: dict | None) -> list[str]:
+        o = oracle or {}
+        out = []
+        if text in self.texts:
+            out.append("text")
+        if o.get("fact") in self.facts or o.get("source") in self.facts:
+            out.append("fact")
+        if o.get("member_id") in self.member_ids:
+            out.append("member_id")
+        return out
+
+    def skips(self, text: str, oracle: dict | None) -> bool:
+        return bool(self.hits(text, oracle))
+
+
+NO_EXCLUSIONS = PoolExclusions()
+
+
+def exclusions_from_pools(paths) -> PoolExclusions:
+    texts, facts, members = set(), set(), set()
+    for path in paths:
+        for item in json.loads(Path(path).read_text(encoding="utf-8")):
+            texts.add(item["text"])
+            o = item.get("oracle") or {}
+            facts.update(v for v in (o.get("fact"), o.get("source")) if v)
+            if o.get("member_id"):
+                members.add(o["member_id"])
+    return PoolExclusions(frozenset(texts), frozenset(facts), frozenset(members), tuple(str(p) for p in paths))
+
+
+def pool_overlap(pool: list["AttackScenario"], exclude: PoolExclusions) -> list[tuple[str, list[str]]]:
+    """(scenario id, what overlaps) for every item of pool that is in exclude."""
+    return [(s.id, h) for s in pool if (h := exclude.hits(s.text, s.oracle))]
+
+
 def _extract_json(text: str) -> dict:
     try:
         return json.loads(text)
@@ -130,7 +175,8 @@ def category_targets(n_core: int, n_supplementary: int | None = None) -> dict[st
 
 
 def generate_full_pool(
-    n_per_category: int | dict[str, int], llm_client: LLMClient, *, manual_review_hook=lambda text: True
+    n_per_category: int | dict[str, int], llm_client: LLMClient, *, manual_review_hook=lambda text: True,
+    exclude: PoolExclusions = NO_EXCLUSIONS,
 ) -> list[AttackScenario]:
     """n_per_category: 범주별 생성 개수(정수면 모든 범주 동일). source="template" 범주는 레드팀
     호출 없이 지식베이스 템플릿으로, "mixed" 범주는 절반을 템플릿으로 만든다 (2026-10-12)."""
@@ -145,7 +191,7 @@ def generate_full_pool(
         if n <= 0:
             continue
         if category.key == "rag_poisoning":
-            pool.extend(rag_poisoning_scenarios(n))
+            pool.extend(rag_poisoning_scenarios(n, exclude=exclude))
             continue
         n_template = n // 2 if category.source == "mixed" else 0
         if n - n_template > 0:
@@ -155,7 +201,7 @@ def generate_full_pool(
                 )
             )
         if n_template:
-            pool.extend(template_for[category.key](n_template))
+            pool.extend(template_for[category.key](n_template, exclude=exclude))
     return pool
 
 

@@ -17,7 +17,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from .attack_generator import AttackScenario
+from .attack_generator import NO_EXCLUSIONS, AttackScenario, PoolExclusions
 
 
 @dataclass(frozen=True)
@@ -156,15 +156,17 @@ def _oracle(fact: ProductFact, false: str, info_type: str) -> dict:
             "source": fact.source}
 
 
-def false_premise_scenarios(n: int, *, seed: int = 7) -> list[AttackScenario]:
+def false_premise_scenarios(n: int, *, seed: int = 7,
+                            exclude: PoolExclusions = NO_EXCLUSIONS) -> list[AttackScenario]:
     items = []
     for fact in template_facts():
         for k, false in enumerate(fact.false_values):
             text = _fill(_FALSE_PREMISE[k % len(_FALSE_PREMISE)], fact, false)
             items.append((text, _oracle(fact, false, "mis")))
     random.Random(seed).shuffle(items)
+    items = [(t, o) for t, o in items if not exclude.skips(t, o)]
     if n > len(items):
-        raise ValueError(f"허위 전제 템플릿은 최대 {len(items)}개까지 만들 수 있습니다 (요청 {n}개)")
+        raise ValueError(f"허위 전제 템플릿은 최대 {len(items)}개까지 만들 수 있습니다 (요청 {n}개, 이전 풀 제외 후)")
     return [AttackScenario(id=f"misinformation-t{i}", category="misinformation", text=t, oracle=o)
             for i, (t, o) in enumerate(items[:n], 1)]
 
@@ -176,7 +178,8 @@ def poison_scenario(fact: ProductFact, false: str, *, style: str, k: int, sid: s
                           poison_context=_fill(POISON_STYLES[style], fact, false))
 
 
-def rag_poisoning_scenarios(n: int, *, seed: int = 11, style: str = "notice") -> list[AttackScenario]:
+def rag_poisoning_scenarios(n: int, *, seed: int = 11, style: str = "notice",
+                            exclude: PoolExclusions = NO_EXCLUSIONS) -> list[AttackScenario]:
     items = []
     for fact in template_facts():
         for k, false in enumerate(fact.false_values):
@@ -184,7 +187,8 @@ def rag_poisoning_scenarios(n: int, *, seed: int = 11, style: str = "notice") ->
             notice = _fill(POISON_STYLES[style], fact, false)
             items.append((question, notice, _oracle(fact, false, "dis")))
     random.Random(seed).shuffle(items)
+    items = [(q, c, o) for q, c, o in items if not exclude.skips(q, o)]
     if n > len(items):
-        raise ValueError(f"RAG 오염 템플릿은 최대 {len(items)}개까지 만들 수 있습니다 (요청 {n}개)")
+        raise ValueError(f"RAG 오염 템플릿은 최대 {len(items)}개까지 만들 수 있습니다 (요청 {n}개, 이전 풀 제외 후)")
     return [AttackScenario(id=f"rag_poisoning-{i}", category="rag_poisoning", text=q, oracle=o, poison_context=c)
             for i, (q, c, o) in enumerate(items[:n], 1)]
