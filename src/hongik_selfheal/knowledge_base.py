@@ -118,9 +118,110 @@ DEFAULT_KB: tuple[KBEntry, ...] = _load_product_kb() + (
 )
 
 
+# --- 상위 k 청크 검색 (kb_v5, 2026-10-16) ---------------------------------------------------
+# 키워드 일치 방식은 질문에 나온 상품 파일만 정확히 넘겨 주므로, 비슷한 모델 문서가 함께
+# 검색되는 실제 RAG 상황(정보 불일치의 주요 원인)이 생기지 않는다. 난이도 탐색과 본 실험은
+# 문서를 청크로 나눠 BM25(한글 글자 바이그램)로 상위 k개를 가져오는 방식을 쓴다.
+# 기본값은 keyword로 두어 1~13차 결과의 재현성을 유지한다.
+import math
+import re
+from collections import Counter
+
+_RETRIEVAL = {"mode": "keyword", "index": None, "top_k": 4, "version": KB_VERSION}
+
+
+def _bigrams(text: str) -> list[str]:
+    toks = []
+    for word in re.findall(r"[0-9A-Za-z가-힣.]+", text.lower()):
+        toks.extend(word[i:i + 2] for i in range(max(1, len(word) - 1)))
+    return toks
+
+
+@dataclass
+class _Chunk:
+    source: str
+    text: str
+    tf: Counter
+
+
+class TopKIndex:
+    """문서 청크에 대한 BM25 색인. 문서 출처를 함께 반환해 어느 문서가 섞였는지 기록한다."""
+
+    def __init__(self, docs: dict[str, str], chunk_chars: int = 600, k1: float = 1.5, b: float = 0.75):
+        self.chunks: list[_Chunk] = []
+        for source, text in sorted(docs.items()):
+            paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+            buf = ""
+            for para in paras:
+                if buf and len(buf) + len(para) > chunk_chars:
+                    self.chunks.append(_Chunk(source, buf, Counter(_bigrams(buf))))
+                    buf = ""
+                buf = f"{buf}\n{para}" if buf else para
+            if buf:
+                self.chunks.append(_Chunk(source, buf, Counter(_bigrams(buf))))
+        self.k1, self.b = k1, b
+        self.avgdl = sum(sum(c.tf.values()) for c in self.chunks) / max(1, len(self.chunks))
+        df = Counter(t for c in self.chunks for t in c.tf)
+        n = len(self.chunks)
+        self.idf = {t: math.log(1 + (n - f + 0.5) / (f + 0.5)) for t, f in df.items()}
+
+    def search(self, query: str, top_k: int = 4) -> list[_Chunk]:
+        q = Counter(_bigrams(query))
+        scored = []
+        for c in self.chunks:
+            dl = sum(c.tf.values())
+            score = 0.0
+            for t in q:
+                f = c.tf.get(t, 0)
+                if f:
+                    score += self.idf[t] * f * (self.k1 + 1) / (f + self.k1 * (1 - self.b + self.b * dl / self.avgdl))
+            if score > 0:
+                scored.append((score, c))
+        scored.sort(key=lambda x: -x[0])
+        return [c for _, c in scored[:top_k]]
+
+
+def load_docs(*dirs: Path) -> dict[str, str]:
+    """상품 문서(.txt)를 모은다. Summary_list.txt는 목록 파일이라 제외한다."""
+    docs = {}
+    for d in dirs:
+        for path in sorted(Path(d).glob("*.txt")):
+            if path.name != "Summary_list.txt":
+                docs[f"{Path(d).name}/{path.name}"] = path.read_text(encoding="utf-8")
+    return docs
+
+
+def configure_retrieval(mode: str = "keyword", *, doc_dirs: tuple[Path, ...] = (), top_k: int = 4,
+                        version: str | None = None) -> None:
+    """유닛 B의 검색 방식을 정한다. topk면 doc_dirs의 모든 문서를 색인한다."""
+    if mode not in ("keyword", "topk"):
+        raise ValueError(mode)
+    _RETRIEVAL["mode"], _RETRIEVAL["top_k"] = mode, top_k
+    if mode == "topk":
+        _RETRIEVAL["index"] = TopKIndex(load_docs(*(doc_dirs or (_RAG_DIR,))))
+        _RETRIEVAL["version"] = version or "kb_v5"
+    else:
+        _RETRIEVAL["index"], _RETRIEVAL["version"] = None, KB_VERSION
+
+
+def current_kb_version() -> str:
+    return _RETRIEVAL["version"]
+
+
 def retrieve(user_input: str, kb: tuple[KBEntry, ...] = DEFAULT_KB) -> str:
     """user_input과 키워드가 겹치는 정적 항목 + 주문번호/이름으로 실제 일치하는
-    회원이 있으면 그 동적 조회 결과까지 합쳐 반환한다 (정제된 컨텍스트만 전달)."""
+    회원이 있으면 그 동적 조회 결과까지 합쳐 반환한다 (정제된 컨텍스트만 전달).
+    topk 모드에서는 상품 문서 대신 BM25 상위 k개 청크를 출처와 함께 넣는다."""
+    if _RETRIEVAL["mode"] == "topk":
+        index: TopKIndex = _RETRIEVAL["index"]
+        matched = [f"[출처: {c.source}]\n{c.text}" for c in index.search(user_input, _RETRIEVAL["top_k"])]
+        product_contents = {e.content for e in kb[:len(_PRODUCT_FILES)]}
+        matched += [e.content for e in kb if e.content not in product_contents
+                    and any(k in user_input for k in e.keywords)]
+        matched.extend(render_member_lookup(m) for m in lookup_from_text(user_input))
+        if not matched:
+            return "(관련 내부 지식 없음 - 일반 안내로 응대할 것)"
+        return "\n".join(f"- {m}" for m in matched)
     matched = [entry.content for entry in kb if any(k in user_input for k in entry.keywords)]
     matched.extend(render_member_lookup(m) for m in lookup_from_text(user_input))
     if not matched:
@@ -128,19 +229,22 @@ def retrieve(user_input: str, kb: tuple[KBEntry, ...] = DEFAULT_KB) -> str:
     return "\n".join(f"- {m}" for m in matched)
 
 
-def snapshot_dict(kb: tuple[KBEntry, ...] = DEFAULT_KB, version: str = KB_VERSION) -> dict:
-    return {
-        "version": version,
-        "entries": [asdict(e) for e in kb],
-    }
+def snapshot_dict(kb: tuple[KBEntry, ...] = DEFAULT_KB, version: str | None = None) -> dict:
+    out = {"version": version or current_kb_version(), "entries": [asdict(e) for e in kb]}
+    if _RETRIEVAL["mode"] == "topk":
+        index: TopKIndex = _RETRIEVAL["index"]
+        out["retrieval"] = {"mode": "topk", "top_k": _RETRIEVAL["top_k"],
+                            "chunks": [{"source": c.source, "text": c.text} for c in index.chunks]}
+    return out
 
 
-def save_kb_snapshot(directory: Path, kb: tuple[KBEntry, ...] = DEFAULT_KB, version: str = KB_VERSION) -> Path:
+def save_kb_snapshot(directory: Path, kb: tuple[KBEntry, ...] = DEFAULT_KB, version: str | None = None) -> Path:
     """실행 시점의 전체 RAG 지식베이스를 data/rag/{version}.json으로 저장한다
     (SRS의 data/srs/*.json 저장 방식과 동일한 목적 — "이 실행 때 정확히 어떤
     내부 지식이 존재했는지"를 결과 JSON만으로도 재구성할 수 있게 함)."""
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
+    version = version or current_kb_version()
     path = directory / f"{version}.json"
     path.write_text(json.dumps(snapshot_dict(kb, version), ensure_ascii=False, indent=2), encoding="utf-8")
     return path
