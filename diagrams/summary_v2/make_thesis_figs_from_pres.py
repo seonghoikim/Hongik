@@ -3,7 +3,7 @@
 
 발표 그림은 학회 논문 용어(SRS, Meta-Rule, 자가 치유, Action Matrix, 영문 등급명)를 쓴다. 여기서는 같은 그림
 함수를 그대로 부르되, matplotlib 글자 설정 단계에서 용어만 학위논문 표기로 바꾸고 결과를
-diagrams/summary_v2/pres_*.png로 저장한다. 숫자와 인용문은 발표 스크립트가 원자료에서 읽은 그대로이다.
+diagrams/summary_v2/thesis_*.png로 저장한다(2026-10-16 이전 판은 pres_*.png). 숫자와 인용문은 발표 스크립트가 원자료에서 읽은 그대로이다.
 
     python3 diagrams/summary_v2/make_thesis_figs_from_pres.py
 """
@@ -43,11 +43,13 @@ def to_thesis(s):
 _orig = mtext.Text.set_text
 mtext.Text.set_text = lambda self, s: _orig(self, to_thesis(s) if isinstance(s, str) else s)
 common.FIGS = HERE
+# 논문 그림 색 기준(2026-10-16): 검정·회색 두 단계·빨강 하나. 빨강은 요약본 그림(make_figs_v9.py)과 같은 색.
+common.RED = "#B03A2E"
 _save = common.save
 
 
 def save(fig, name):
-    _save(fig, "pres_" + name)
+    _save(fig, "thesis_" + name)
 
 
 common.save = save
@@ -58,6 +60,11 @@ import make_diagrams  # noqa: E402
 
 for mod in (make_cards, make_charts, make_diagrams):
     mod.save = save
+# 발표 그림의 초록 강조는 검정으로, 빨강은 요약본과 같은 색으로 바꾼다
+for mod in (make_cards, make_charts, make_diagrams):
+    if hasattr(mod, "RED"):
+        mod.RED = common.RED
+make_diagrams.GREEN = common.BLACK
 
 make_diagrams.n01()
 make_diagrams.n02()
